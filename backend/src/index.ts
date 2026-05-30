@@ -13,14 +13,16 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
-  .split(",")
-  .map(o => o.trim());
-
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error("Not allowed by CORS"));
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    const allowed = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
+      .split(",")
+      .map(o => o.trim());
+    if (allowed.includes("*") || allowed.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
 }));
