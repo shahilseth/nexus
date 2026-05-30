@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
-    const allowed = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
+    const allowed = (process.env.ALLOWED_ORIGINS || "*")
       .split(",")
       .map(o => o.trim());
     if (allowed.includes("*") || allowed.includes(origin)) {
