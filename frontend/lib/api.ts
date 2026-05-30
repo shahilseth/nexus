@@ -64,4 +64,9 @@ export const activityApi = {
     api.get(projectId ? `/api/activity?projectId=${projectId}` : "/api/activity"),
 };
 
+// Stats
+export const statsApi = {
+  get: () => api.get("/api/stats"),
+};
+
 export default api;

@@ -7,13 +7,24 @@ import Topbar from "./Topbar";
 import CommandPalette from "./CommandPalette";
 import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/context/RoleContext";
+import { statsApi } from "@/lib/api";
 
 interface AppShellProps {
   children: ReactNode;
 }
 
+export interface AppStats {
+  project_count: number;
+  member_count: number;
+  tasks_due_today: number;
+  overdue_tasks: number;
+  members_at_capacity: number;
+  projects_added_this_week: number;
+}
+
 export default function AppShell({ children }: AppShellProps) {
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [stats, setStats] = useState<AppStats | null>(null);
   const { user, isLoading } = useAuth();
   const { role } = useRole();
   const router = useRouter();
@@ -21,6 +32,12 @@ export default function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     if (!isLoading && !user) router.push("/login");
   }, [user, isLoading, router]);
+
+  useEffect(() => {
+    if (user) {
+      statsApi.get().then(r => setStats(r.data)).catch(() => {});
+    }
+  }, [user]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -38,7 +55,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <div className={`app role-${role}`}>
-      <Sidebar onOpenCmdk={() => setCmdkOpen(true)} />
+      <Sidebar onOpenCmdk={() => setCmdkOpen(true)} stats={stats} />
       <div className="main">
         <Topbar onOpenCmdk={() => setCmdkOpen(true)} />
         {children}

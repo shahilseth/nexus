@@ -31,22 +31,6 @@ const STATUS_TONE: Record<string, string> = {
   "Backlog": "", "Todo": "", "In Progress": "warn", "Review": "ai", "Done": "ok",
 };
 
-const STATIC_TASKS: Task[] = [
-  { id: "t1",  title: "Spec notification preferences", status: "Backlog",     priority: "low",    due_date: "Jun 18", assignee_name: "Jordan Blake" },
-  { id: "t2",  title: "Audit onboarding copy",         status: "Backlog",     priority: "low",    due_date: "Jun 20", assignee_name: "Lena Fischer" },
-  { id: "t3",  title: "Research calendar sync",        status: "Backlog",     priority: "medium", due_date: "Jun 22", assignee_name: "Mei Chen" },
-  { id: "t4",  title: "Build AI priority suggester",   status: "Todo",        priority: "high",   due_date: "Jun 10", assignee_name: "Riya Kapoor", ai_suggested: true, blocks: "Auto-assign tasks" },
-  { id: "t5",  title: "Design empty states v2",        status: "Todo",        priority: "medium", due_date: "Jun 09", assignee_name: "Aria Sen" },
-  { id: "t6",  title: "Set up webhook retries",        status: "Todo",        priority: "medium", due_date: "Jun 14", assignee_name: "Tomás Ruiz" },
-  { id: "t7",  title: "Wire up auth flow",             status: "In Progress", priority: "high",   due_date: "Jun 08", assignee_name: "Devon Park", blocks: "Ship onboarding emails" },
-  { id: "t8",  title: "Command palette polish",        status: "In Progress", priority: "medium", due_date: "Jun 07", assignee_name: "Aria Sen" },
-  { id: "t9",  title: "Kanban drag performance",       status: "In Progress", priority: "medium", due_date: "Jun 11", assignee_name: "Marcus Lee" },
-  { id: "t10", title: "Role-based permissions",        status: "Review",      priority: "high",   due_date: "Jun 06", assignee_name: "Riya Kapoor", blocked_by: "Migrate billing tables" },
-  { id: "t11", title: "Activity feed pagination",      status: "Review",      priority: "low",    due_date: "Jun 05", assignee_name: "Aria Sen" },
-  { id: "t12", title: "Design empty states",           status: "Done",        priority: "medium", due_date: "Jun 02", assignee_name: "Riya Kapoor" },
-  { id: "t13", title: "Sidebar navigation",            status: "Done",        priority: "medium", due_date: "May 30", assignee_name: "Devon Park" },
-  { id: "t14", title: "Project cards layout",          status: "Done",        priority: "low",    due_date: "May 28", assignee_name: "Aria Sen" },
-];
 
 function formatDue(dateStr?: string): string | undefined {
   if (!dateStr) return undefined;
@@ -56,27 +40,32 @@ function formatDue(dateStr?: string): string | undefined {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+interface ProjectMember { name: string; }
+
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
-  const [tasks, setTasks] = useState<Task[]>(STATIC_TASKS);
-  const [projectName, setProjectName] = useState("Nexus");
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projectName, setProjectName] = useState("");
   const [projectStatus, setProjectStatus] = useState("On Track");
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<TaskData | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const { role } = useRole();
   const { user } = useAuth();
-  const currentUserName = user?.name || "Shahil Seth";
+  const currentUserName = user?.name || "";
 
   useEffect(() => {
+    setLoading(true);
     projectsApi.get(params.id)
       .then(r => {
-        if (r.data.tasks && r.data.tasks.length > 0) setTasks(r.data.tasks);
+        if (Array.isArray(r.data.tasks)) setTasks(r.data.tasks);
         if (r.data.name) setProjectName(r.data.name);
         if (r.data.status) setProjectStatus(r.data.status);
+        if (Array.isArray(r.data.members)) setProjectMembers(r.data.members.map((m: { name: string }) => ({ name: m.name })));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [params.id]);
-
-  const displayed = tasks;
 
   function openTask(task: Task) {
     setSelectedTask({
@@ -106,14 +95,16 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               <div className="page-title">{projectName}</div>
               <Badge tone={statusTone(projectStatus)} dot>{projectStatus}</Badge>
             </div>
-            <div className="page-sub">{displayed.length} tasks</div>
+            <div className="page-sub">{loading ? "Loading…" : `${tasks.length} tasks`}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div className="avatar-stack" style={{ marginRight: 4 }}>
-              {["Aria Sen", "Riya Kapoor", "Marcus Lee", "Devon Park"].map(n => (
-                <Avatar key={n} name={n} size="sm" />
+              {projectMembers.slice(0, 4).map(m => (
+                <Avatar key={m.name} name={m.name} size="sm" />
               ))}
-              <span className="more">+1</span>
+              {projectMembers.length > 4 && (
+                <span className="more">+{projectMembers.length - 4}</span>
+              )}
             </div>
             <button className="btn btn-ghost admin-only"><UserPlus size={16} /> Assign member</button>
             <button className="btn btn-primary admin-only"><Plus size={16} /> Add task</button>
@@ -125,10 +116,13 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         </div>
 
         {/* Kanban board */}
-        <div className="board-wrap">
+        {loading && (
+          <div style={{ color: "var(--fg-muted)", fontSize: 14, padding: "20px 0" }}>Loading tasks…</div>
+        )}
+        <div className="board-wrap" style={{ display: loading ? "none" : "block" }}>
           <div className="board">
             {COLUMNS.map(col => {
-              const colTasks = displayed.filter(t => t.status === col);
+              const colTasks = tasks.filter(t => t.status === col);
               return (
                 <div className="kcol" key={col}>
                   <div className="kcol-head">

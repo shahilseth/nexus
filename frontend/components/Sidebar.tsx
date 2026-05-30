@@ -8,6 +8,7 @@ import {
 import Avatar from "./Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/context/RoleContext";
+import type { AppStats } from "./AppShell";
 
 const BrandMark = () => (
   <svg className="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--charcoal)" }}>
@@ -21,9 +22,10 @@ const BrandMark = () => (
 
 interface SidebarProps {
   onOpenCmdk: () => void;
+  stats: AppStats | null;
 }
 
-export default function Sidebar({ onOpenCmdk }: SidebarProps) {
+export default function Sidebar({ onOpenCmdk, stats }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const { role, setRole } = useRole();
@@ -42,10 +44,12 @@ export default function Sidebar({ onOpenCmdk }: SidebarProps) {
           <LayoutDashboard size={18} /> Dashboard
         </Link>
         <Link className={`nav-item${pathname.startsWith("/projects") ? " active" : ""}`} href="/projects">
-          <FolderKanban size={18} /> Projects <span className="nav-count">6</span>
+          <FolderKanban size={18} /> Projects
+          {stats && <span className="nav-count">{stats.project_count}</span>}
         </Link>
         <Link className={`nav-item${pathname === "/team" ? " active" : ""}`} href="/team">
-          <Users size={18} /> Team <span className="nav-count">8</span>
+          <Users size={18} /> Team
+          {stats && <span className="nav-count">{stats.member_count}</span>}
         </Link>
 
         <div className="nav-section-label">Workspace</div>
