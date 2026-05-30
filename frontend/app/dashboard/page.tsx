@@ -38,13 +38,17 @@ function timeAgo(dateStr: string) {
 }
 
 export default function DashboardPage() {
-  const [projects, setProjects] = useState<Project[]>(STATIC_PROJECTS);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [activity, setActivity] = useState<Activity[]>(STATIC_ACTIVITY);
-  const [memberCount, setMemberCount] = useState(9);
+  const [memberCount, setMemberCount] = useState(0);
+  const [loadingProjects, setLoadingProjects] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
-    projectsApi.list().then(r => { if (Array.isArray(r.data) && r.data.length > 0) setProjects(r.data); }).catch(() => {});
+    projectsApi.list()
+      .then(r => { if (Array.isArray(r.data)) setProjects(r.data); })
+      .catch(() => {})
+      .finally(() => setLoadingProjects(false));
     activityApi.list().then(r => { if (Array.isArray(r.data) && r.data.length > 0) setActivity(r.data); }).catch(() => {});
     membersApi.list().then(r => { if (Array.isArray(r.data) && r.data.length > 0) setMemberCount(r.data.length); }).catch(() => {});
   }, []);
@@ -68,7 +72,7 @@ export default function DashboardPage() {
         <div className="stat-grid section">
           <div className="stat-card">
             <div className="stat-top"><span className="stat-ico"><FolderKanban size={16} /></span><span className="stat-label">Active projects</span></div>
-            <div className="stat-num">{projects.length}</div>
+            <div className="stat-num">{loadingProjects ? "—" : projects.length}</div>
             <div className="stat-foot"><TrendingUp size={14} /> 2 added this week</div>
           </div>
           <div className="stat-card">
@@ -83,7 +87,7 @@ export default function DashboardPage() {
           </div>
           <div className="stat-card">
             <div className="stat-top"><span className="stat-ico"><Users size={16} /></span><span className="stat-label">Team members</span></div>
-            <div className="stat-num">{memberCount}</div>
+            <div className="stat-num">{memberCount || "—"}</div>
             <div className="stat-foot">1 at capacity</div>
           </div>
         </div>
@@ -106,8 +110,10 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {projects.slice(0, 5).map(p => (
-                  <tr key={p.id || p.name} onClick={() => {}}>
+                {loadingProjects ? (
+                  <tr><td colSpan={5} style={{ color: "var(--fg-muted)", fontSize: 14, padding: "18px 16px" }}>Loading…</td></tr>
+                ) : projects.map(p => (
+                  <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => window.location.href = `/projects/${p.id}`}>
                     <td className="cell-strong">{p.name}</td>
                     <td>
                       <div className="cell-with-avatar">
@@ -187,14 +193,6 @@ export default function DashboardPage() {
   );
 }
 
-const STATIC_PROJECTS: Project[] = [
-  { id: "1", name: "Nexus",             status: "On Track", owner_name: "Shahil Seth", due_date: "2026-06-12" },
-  { id: "2", name: "Atlas Migration",   status: "At Risk",  owner_name: "Shahil Seth", due_date: "2026-06-05" },
-  { id: "3", name: "Orbit Mobile",      status: "Blocked",  owner_name: "Shahil Seth", due_date: "2026-06-20" },
-  { id: "4", name: "Pulse Analytics",   status: "On Track", owner_name: "Shahil Seth", due_date: "2026-07-01" },
-  { id: "5", name: "Beacon Onboarding", status: "On Track", owner_name: "Shahil Seth", due_date: "2026-06-28" },
-  { id: "6", name: "Harbor API",        status: "At Risk",  owner_name: "Shahil Seth", due_date: "2026-06-15" },
-];
 
 const STATIC_ACTIVITY: Activity[] = [
   { id: "1", user_name: "Marcus Lee",  action: 'moved "Migrate billing tables" to Blocked', created_at: new Date(Date.now() - 12*60000).toISOString() },
