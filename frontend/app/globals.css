@@ -667,7 +667,7 @@ a { color: var(--fg); text-decoration: none; }
   --fg-body:       rgba(240,237,232,0.76);
   --fg-muted:      #8e8e93;
   --fg-on-dark:    #111113;
-  --ink-04:        rgba(255,255,255,0.05);
+  --ink-04:        rgba(255,255,255,0.07);
   --ink-03:        rgba(255,255,255,0.03);
   --ink-40:        rgba(255,255,255,0.40);
 
@@ -688,6 +688,41 @@ a { color: var(--fg); text-decoration: none; }
   --ai-bg:   oklch(0.22 0.038 258);
   --ai-fg:   oklch(0.78 0.072 258);
 }
+
+/* ============================================================
+   Dark mode — rule-level overrides for hardcoded colors
+   ============================================================ */
+
+/* Text selection visible on dark backgrounds */
+[data-theme="dark"] ::selection { background: rgba(255,255,255,0.14); }
+
+/* Role-toggle active tab: var(--cream) = #18181b in dark = invisible on dark sidebar */
+[data-theme="dark"] .role-toggle button.on {
+  background: rgba(255,255,255,0.12); color: var(--fg);
+  box-shadow: rgba(0,0,0,0.3) 0 1px 2px;
+}
+
+/* Auth aside: replace bright pastel gradients with subtle dark equivalents */
+[data-theme="dark"] .auth-aside {
+  background:
+    radial-gradient(70% 55% at 18% 18%, oklch(0.30 0.04 30 / 0.7), transparent 60%),
+    radial-gradient(60% 55% at 85% 30%, oklch(0.27 0.04 350 / 0.6), transparent 60%),
+    radial-gradient(70% 70% at 60% 100%, oklch(0.28 0.04 250 / 0.6), transparent 60%),
+    var(--bg);
+}
+
+/* AI Pulse card: replace bright lavender glow with subtle dark-blue glow */
+[data-theme="dark"] .pulse {
+  background:
+    radial-gradient(120% 120% at 100% 0%, oklch(0.28 0.04 262 / 0.8), transparent 55%),
+    var(--cream);
+}
+
+/* Scrims: dark overlay on dark page needs more opacity to be visible */
+[data-theme="dark"] .scrim       { background: rgba(0,0,0,0.55); }
+[data-theme="dark"] .modal-scrim { background: rgba(0,0,0,0.65); }
+[data-theme="dark"] .notif-scrim { background: rgba(0,0,0,0.55); }
+[data-theme="dark"] .cmdk-scrim  { background: rgba(0,0,0,0.60); }
 
 /* ============================================================
    Notification panel

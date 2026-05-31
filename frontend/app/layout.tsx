@@ -13,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       {/* Inline script runs synchronously before paint — prevents dark-mode flash */}
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('nexus-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')})()` }} />
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('nexus-theme');if(t!=='light'){document.documentElement.setAttribute('data-theme','dark');if(!t)localStorage.setItem('nexus-theme','dark');}})()` }} />
       </head>
       <body>
         <AuthProvider>

@@ -34,17 +34,22 @@ export default function SettingsPage() {
   }
 
   /* ── Appearance ── */
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
     const saved = localStorage.getItem("nexus-theme");
-    if (saved === "dark") setTheme("dark");
+    // Dark is the default — only switch to light when explicitly saved as 'light'
+    setTheme(saved === "light" ? "light" : "dark");
   }, []);
 
   function applyTheme(t: "light" | "dark") {
     setTheme(t);
     localStorage.setItem("nexus-theme", t);
-    document.documentElement.setAttribute("data-theme", t === "dark" ? "dark" : "");
+    if (t === "dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
   }
 
   /* ── Notification prefs ── */
