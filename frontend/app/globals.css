@@ -210,7 +210,7 @@ a { color: var(--fg); text-decoration: none; }
    ============================================================ */
 .avatar {
   display: inline-grid; place-items: center; flex-shrink: 0;
-  border-radius: var(--radius-pill); color: var(--charcoal);
+  border-radius: var(--radius-pill);
   font-size: 13px; font-weight: var(--weight-heading); letter-spacing: -0.3px;
   width: 32px; height: 32px; line-height: 1; user-select: none;
 }
@@ -218,6 +218,28 @@ a { color: var(--fg); text-decoration: none; }
 .avatar.sm { width: 28px; height: 28px; font-size: 11px; }
 .avatar.lg { width: 44px; height: 44px; font-size: 16px; }
 .avatar.xl { width: 56px; height: 56px; font-size: 20px; }
+
+/* Light-mode avatar tones — warm pastels with dark text */
+.av-0 { background: #dfd7c4; color: #1c1c1c; }
+.av-1 { background: #cfd3c6; color: #1c1c1c; }
+.av-2 { background: #d6ccc2; color: #1c1c1c; }
+.av-3 { background: #c8ccd2; color: #1c1c1c; }
+.av-4 { background: #daccc8; color: #1c1c1c; }
+.av-5 { background: #d0cabb; color: #1c1c1c; }
+.av-6 { background: #cdd2cb; color: #1c1c1c; }
+.av-7 { background: #d3cdd0; color: #1c1c1c; }
+.av-8 { background: #d8d0c2; color: #1c1c1c; }
+
+/* Dark-mode avatar tones — medium muted backgrounds with light text */
+[data-theme="dark"] .av-0 { background: #3b3628; color: #d4c8a8; }
+[data-theme="dark"] .av-1 { background: #293029; color: #96b890; }
+[data-theme="dark"] .av-2 { background: #38302b; color: #c8a890; }
+[data-theme="dark"] .av-3 { background: #282e3c; color: #8898c8; }
+[data-theme="dark"] .av-4 { background: #38282e; color: #c88898; }
+[data-theme="dark"] .av-5 { background: #32302b; color: #b0ac80; }
+[data-theme="dark"] .av-6 { background: #283633; color: #88c0b0; }
+[data-theme="dark"] .av-7 { background: #30283c; color: #a888c8; }
+[data-theme="dark"] .av-8 { background: #363029; color: #c0b894; }
 .avatar-stack { display: flex; }
 .avatar-stack .avatar { box-shadow: 0 0 0 2px var(--cream); }
 .avatar-stack .avatar + .avatar { margin-left: -8px; }
@@ -648,6 +670,23 @@ a { color: var(--fg); text-decoration: none; }
   --ink-04:        rgba(255,255,255,0.05);
   --ink-03:        rgba(255,255,255,0.03);
   --ink-40:        rgba(255,255,255,0.40);
+
+  /* Status badge colors — muted for dark mode */
+  /* ok  = On Track / Done  → dark sage green */
+  --ok-bg:   oklch(0.24 0.038 150);
+  --ok-fg:   oklch(0.78 0.090 150);
+
+  /* warn = At Risk / In Progress → dark amber */
+  --warn-bg: oklch(0.24 0.048 75);
+  --warn-fg: oklch(0.80 0.095 78);
+
+  /* risk = Blocked / overdue → dark brick red */
+  --risk-bg: oklch(0.23 0.044 38);
+  --risk-fg: oklch(0.78 0.085 40);
+
+  /* ai = Review → dark slate blue */
+  --ai-bg:   oklch(0.22 0.038 258);
+  --ai-fg:   oklch(0.78 0.072 258);
 }
 
 /* ============================================================

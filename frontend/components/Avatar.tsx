@@ -1,19 +1,16 @@
 "use client";
 
-const AV_TONES = [
-  "#dfd7c4", "#cfd3c6", "#d6ccc2", "#c8ccd2",
-  "#daccc8", "#d0cabb", "#cdd2cb", "#d3cdd0", "#d8d0c2",
-];
+/* Nine deterministic tone slots — background set by CSS (.av-0 … .av-8)
+   so both light-mode and dark-mode can apply the right palette. */
+function slotFor(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h * 31) + name.charCodeAt(i)) >>> 0;
+  return h % 9;
+}
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase();
-}
-
-function toneFor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = ((h * 31) + name.charCodeAt(i)) >>> 0;
-  return AV_TONES[h % AV_TONES.length];
 }
 
 interface AvatarProps {
@@ -25,10 +22,11 @@ interface AvatarProps {
 
 export default function Avatar({ name, size = "md", className = "", style }: AvatarProps) {
   const sizeClass = size === "md" ? "" : size;
+  const slot = slotFor(name);
   return (
     <span
-      className={`avatar ${sizeClass} ${className}`.trim()}
-      style={{ background: toneFor(name), ...style }}
+      className={`avatar av-${slot} ${sizeClass} ${className}`.trim()}
+      style={style}
     >
       {initials(name)}
     </span>
