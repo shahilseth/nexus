@@ -80,4 +80,9 @@ export const notificationsApi = {
   markRead: () => api.put("/api/notifications/read"),
 };
 
+// Help
+export const helpApi = {
+  getFaqs: () => api.get("/api/help/faqs"),
+};
+
 export default api;

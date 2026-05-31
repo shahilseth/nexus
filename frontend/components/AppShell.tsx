@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import CommandPalette from "./CommandPalette";
 import BottomNav from "./BottomNav";
+import MobileDrawer from "./MobileDrawer";
 import NotificationPanel from "./NotificationPanel";
 import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/context/RoleContext";
@@ -27,6 +28,7 @@ export interface AppStats {
 export default function AppShell({ children }: AppShellProps) {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [stats, setStats] = useState<AppStats | null>(null);
   const { user, isLoading } = useAuth();
@@ -78,9 +80,11 @@ export default function AppShell({ children }: AppShellProps) {
           onOpenCmdk={() => setCmdkOpen(true)}
           onOpenNotif={openNotif}
           unreadCount={unreadCount}
+          onOpenDrawer={() => setDrawerOpen(true)}
         />
         {children}
       </div>
+      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
       <CommandPalette open={cmdkOpen} onClose={() => setCmdkOpen(false)} />
       <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
       <BottomNav />

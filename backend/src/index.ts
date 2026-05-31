@@ -9,6 +9,7 @@ import memberRoutes from "./routes/members";
 import activityRoutes from "./routes/activity";
 import statsRoutes from "./routes/stats";
 import notificationRoutes from "./routes/notifications";
+import helpRoutes from "./routes/help";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use("/api/members", memberRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/help", helpRoutes);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

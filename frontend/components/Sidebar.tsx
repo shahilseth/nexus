@@ -59,9 +59,9 @@ export default function Sidebar({ onOpenCmdk, stats }: SidebarProps) {
         <Link className={`nav-item${pathname === "/settings" ? " active" : ""}`} href="/settings">
           <Settings size={18} /> Settings
         </Link>
-        <a className="nav-item" href="#">
+        <Link className={`nav-item${pathname === "/help" ? " active" : ""}`} href="/help">
           <CircleHelp size={18} /> Help
-        </a>
+        </Link>
       </nav>
 
       <div className="side-spacer" />
