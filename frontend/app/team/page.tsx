@@ -5,6 +5,7 @@ import { UserPlus, Info, Ellipsis, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import AppShell from "@/components/AppShell";
 import Avatar from "@/components/Avatar";
+import MemberSelect from "@/components/MemberSelect";
 import { membersApi, projectsApi } from "@/lib/api";
 
 interface Member {
@@ -91,7 +92,10 @@ export default function TeamPage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<InviteForm>({
+  const [selectedEmail, setSelectedEmail] = useState("");
+  const [selectedName, setSelectedName] = useState("");
+
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<InviteForm>({
     defaultValues: { role: "member" },
   });
 
@@ -254,11 +258,18 @@ export default function TeamPage() {
       </div>
 
       {showModal && (
-        <div className="modal-scrim" onClick={e => { if (e.target === e.currentTarget) { setShowModal(false); reset(); } }}>
+        <div className="modal-scrim" onClick={e => {
+          if (e.target === e.currentTarget) {
+            setShowModal(false); reset(); setSelectedEmail(""); setSelectedName("");
+          }
+        }}>
           <div className="modal">
             <div className="modal-head">
               <span className="modal-title">Invite member</span>
-              <button className="icon-btn" onClick={() => { setShowModal(false); reset(); setInviteError(""); setInviteSuccess(""); }}>
+              <button className="icon-btn" onClick={() => {
+                setShowModal(false); reset(); setInviteError(""); setInviteSuccess("");
+                setSelectedEmail(""); setSelectedName("");
+              }}>
                 <X size={18} />
               </button>
             </div>
@@ -269,14 +280,25 @@ export default function TeamPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit(onInvite)}>
+                {/* Hidden email field registered with react-hook-form */}
+                <input type="hidden" {...register("email", { required: "Select a member" })} />
                 <div className="form-field">
-                  <label>Email address *</label>
-                  <input
-                    type="email"
-                    placeholder="teammate@company.com"
-                    {...register("email", { required: "Email is required" })}
+                  <label>Member *</label>
+                  <MemberSelect
+                    displayValue={selectedName}
+                    placeholder="Search by name or email…"
+                    onChange={m => {
+                      setSelectedEmail(m.email);
+                      setSelectedName(m.name);
+                      setValue("email", m.email, { shouldValidate: true });
+                    }}
                   />
                   {errors.email && <span className="form-error">{errors.email.message}</span>}
+                  {selectedEmail && (
+                    <span style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4 }}>
+                      {selectedEmail}
+                    </span>
+                  )}
                 </div>
                 <div className="form-field">
                   <label>Project *</label>
@@ -299,7 +321,9 @@ export default function TeamPage() {
                 {inviteError && <p className="form-error">{inviteError}</p>}
 
                 <div className="modal-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => { setShowModal(false); reset(); }}>Cancel</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => {
+                    setShowModal(false); reset(); setSelectedEmail(""); setSelectedName("");
+                  }}>Cancel</button>
                   <button type="submit" className="btn btn-primary" disabled={inviting}>
                     {inviting ? "Inviting…" : "Send invite"}
                   </button>

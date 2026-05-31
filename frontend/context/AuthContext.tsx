@@ -45,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function login(newToken: string, newUser: User) {
     localStorage.setItem("nexus-token", newToken);
     localStorage.setItem("nexus-user", JSON.stringify(newUser));
+    localStorage.setItem("nexus-role", newUser.role);
     setToken(newToken);
     setUser(newUser);
   }
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     localStorage.removeItem("nexus-token");
     localStorage.removeItem("nexus-user");
+    localStorage.removeItem("nexus-role");
     setToken(null);
     setUser(null);
     router.push("/login");

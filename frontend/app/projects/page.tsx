@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Info, X } from "lucide-react";
+import { Plus, Info, X, Ellipsis } from "lucide-react";
 import { useForm } from "react-hook-form";
 import AppShell from "@/components/AppShell";
 import Avatar from "@/components/Avatar";
@@ -34,6 +34,9 @@ export default function ProjectsPage() {
   const [showModal, setShowModal] = useState(false);
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateForm>({
     defaultValues: { status: "On Track" },
@@ -49,6 +52,16 @@ export default function ProjectsPage() {
 
   useEffect(() => { loadProjects(); }, []);
 
+  useEffect(() => {
+    if (!openMenuId) return;
+    function handle(e: MouseEvent) {
+      const target = e.target as Element;
+      if (!target.closest(".proj-menu-wrap")) setOpenMenuId(null);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [openMenuId]);
+
   async function onSubmit(data: CreateForm) {
     setCreateError("");
     setCreating(true);
@@ -62,6 +75,20 @@ export default function ProjectsPage() {
       setCreateError(err.response?.data?.error || "Failed to create project");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function doDelete() {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await projectsApi.delete(confirmDelete.id);
+      setProjects(prev => prev.filter(p => p.id !== confirmDelete.id));
+      setConfirmDelete(null);
+    } catch {
+      // server enforces admin-only; error handled silently
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -94,38 +121,67 @@ export default function ProjectsPage() {
               const memberList = p.members && p.members.length > 0
                 ? p.members
                 : p.owner_name ? [{ name: p.owner_name }] : [];
+              const isMenuOpen = openMenuId === p.id;
 
               return (
-                <Link key={p.id} className="proj-card" href={`/projects/${p.id}`}>
-                  <div className="pc-top">
-                    <div className="grow"><div className="pc-name">{p.name}</div></div>
-                    <Badge tone={statusTone(p.status)} dot>{p.status}</Badge>
-                  </div>
-                  <div className="pc-desc">{p.description || "No description."}</div>
-                  <div className="pc-prog-row">
-                    <div className="progress"><span style={{ width: `${pct}%` }} /></div>
-                    <span className="pct">{pct}%</span>
-                  </div>
-                  <div className="pc-foot">
-                    <div className="avatar-stack">
-                      {memberList.slice(0, 3).map(m => (
-                        <Avatar key={m.name} name={m.name} size="sm" />
-                      ))}
-                      {memberList.length > 3 && (
-                        <span className="more">+{memberList.length - 3}</span>
-                      )}
+                <div key={p.id} style={{ position: "relative" }}>
+                  <Link className="proj-card" href={`/projects/${p.id}`}>
+                    <div className="pc-top">
+                      <div className="grow"><div className="pc-name">{p.name}</div></div>
+                      <Badge tone={statusTone(p.status)} dot>{p.status}</Badge>
                     </div>
-                    <span className="last">
-                      {p.last_active ? `Active ${p.last_active}` : "Active recently"}
-                    </span>
+                    <div className="pc-desc">{p.description || "No description."}</div>
+                    <div className="pc-prog-row">
+                      <div className="progress"><span style={{ width: `${pct}%` }} /></div>
+                      <span className="pct">{pct}%</span>
+                    </div>
+                    <div className="pc-foot">
+                      <div className="avatar-stack">
+                        {memberList.slice(0, 3).map(m => (
+                          <Avatar key={m.name} name={m.name} size="sm" />
+                        ))}
+                        {memberList.length > 3 && (
+                          <span className="more">+{memberList.length - 3}</span>
+                        )}
+                      </div>
+                      <span className="last">
+                        {p.last_active ? `Active ${p.last_active}` : "Active recently"}
+                      </span>
+                    </div>
+                  </Link>
+
+                  {/* Three-dots menu — outside the Link to avoid navigation on click */}
+                  <div
+                    className="proj-menu-wrap admin-only"
+                    style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }}
+                  >
+                    <button
+                      className="icon-btn"
+                      style={{ width: 28, height: 28 }}
+                      title="Project options"
+                      onClick={e => { e.preventDefault(); setOpenMenuId(isMenuOpen ? null : p.id); }}
+                    >
+                      <Ellipsis size={15} />
+                    </button>
+                    {isMenuOpen && (
+                      <div className="proj-menu">
+                        <button
+                          className="proj-menu-item danger"
+                          onClick={e => { e.preventDefault(); setOpenMenuId(null); setConfirmDelete(p); }}
+                        >
+                          Delete project
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
         )}
       </div>
 
+      {/* Create project modal */}
       {showModal && (
         <div className="modal-scrim" onClick={e => { if (e.target === e.currentTarget) { setShowModal(false); reset(); } }}>
           <div className="modal">
@@ -163,6 +219,35 @@ export default function ProjectsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDelete && (
+        <div className="modal-scrim" onClick={e => { if (e.target === e.currentTarget) setConfirmDelete(null); }}>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <div className="modal-head">
+              <span className="modal-title">Delete project</span>
+              <button className="icon-btn" onClick={() => setConfirmDelete(null)}><X size={18} /></button>
+            </div>
+            <p style={{ fontSize: 15, color: "var(--fg-body)", margin: "0 0 4px" }}>
+              Are you sure you want to delete <b>{confirmDelete.name}</b>?
+            </p>
+            <p style={{ fontSize: 13, color: "var(--fg-muted)", margin: 0 }}>
+              This will permanently remove the project and all its tasks. This cannot be undone.
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setConfirmDelete(null)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                style={{ background: "var(--risk-fg)" }}
+                disabled={deleting}
+                onClick={doDelete}
+              >
+                {deleting ? "Deleting…" : "Delete project"}
+              </button>
+            </div>
           </div>
         </div>
       )}

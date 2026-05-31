@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, UserPlus, Calendar, Lock, Link as LinkIcon } from "lucide-react";
+import { Plus, UserPlus, Calendar, Lock, Link as LinkIcon, X } from "lucide-react";
+import { useForm } from "react-hook-form";
 import AppShell from "@/components/AppShell";
 import Avatar from "@/components/Avatar";
 import Badge, { statusTone } from "@/components/Badge";
 import TaskPanel, { TaskData } from "@/components/TaskPanel";
-import { projectsApi } from "@/lib/api";
+import MemberSelect, { MemberOption } from "@/components/MemberSelect";
+import { projectsApi, tasksApi } from "@/lib/api";
 import { useRole } from "@/context/RoleContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -25,16 +27,18 @@ interface Task {
   blocks?: string;
 }
 
+interface AddTaskForm {
+  title: string;
+  description: string;
+  priority: string;
+  due_date: string;
+  status: string;
+}
+
 const COLUMNS = ["Backlog", "Todo", "In Progress", "Review", "Done"];
-
-const STATUS_TONE: Record<string, string> = {
-  "Backlog": "", "Todo": "", "In Progress": "warn", "Review": "ai", "Done": "ok",
-};
-
 
 function formatDue(dateStr?: string): string | undefined {
   if (!dateStr) return undefined;
-  // Already formatted like "Jun 18" — return as-is
   if (!/^\d{4}/.test(dateStr)) return dateStr;
   const d = new Date(dateStr);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -50,9 +54,20 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<TaskData | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [addTaskStatus, setAddTaskStatus] = useState("Backlog");
+  const [assignee, setAssignee] = useState<MemberOption | null>(null);
+  const [addTaskError, setAddTaskError] = useState("");
+  const [addingTask, setAddingTask] = useState(false);
+
   const { role } = useRole();
   const { user } = useAuth();
   const currentUserName = user?.name || "";
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<AddTaskForm>({
+    defaultValues: { priority: "medium", status: "Backlog" },
+  });
 
   useEffect(() => {
     setLoading(true);
@@ -61,7 +76,8 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         if (Array.isArray(r.data.tasks)) setTasks(r.data.tasks);
         if (r.data.name) setProjectName(r.data.name);
         if (r.data.status) setProjectStatus(r.data.status);
-        if (Array.isArray(r.data.members)) setProjectMembers(r.data.members.map((m: { name: string }) => ({ name: m.name })));
+        if (Array.isArray(r.data.members))
+          setProjectMembers(r.data.members.map((m: { name: string }) => ({ name: m.name })));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -81,6 +97,43 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       blocked_by: task.blocked_by,
     });
     setPanelOpen(true);
+  }
+
+  function openAddTask(col = "Backlog") {
+    setAddTaskStatus(col);
+    setAssignee(null);
+    setAddTaskError("");
+    reset({ priority: "medium", status: col, title: "", description: "", due_date: "" });
+    setShowAddTask(true);
+  }
+
+  async function onAddTask(data: AddTaskForm) {
+    setAddTaskError("");
+    setAddingTask(true);
+    try {
+      const res = await tasksApi.create({
+        project_id: params.id,
+        title: data.title,
+        description: data.description || undefined,
+        priority: data.priority,
+        status: data.status,
+        due_date: data.due_date || undefined,
+        assignee_id: assignee?.id || undefined,
+      });
+      const newTask: Task = {
+        ...res.data,
+        assignee_name: assignee?.name,
+      };
+      setTasks(prev => [newTask, ...prev]);
+      setShowAddTask(false);
+      reset();
+      setAssignee(null);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setAddTaskError(err.response?.data?.error || "Failed to create task");
+    } finally {
+      setAddingTask(false);
+    }
   }
 
   return (
@@ -106,8 +159,12 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                 <span className="more">+{projectMembers.length - 4}</span>
               )}
             </div>
-            <button className="btn btn-ghost admin-only"><UserPlus size={16} /> Assign member</button>
-            <button className="btn btn-primary admin-only"><Plus size={16} /> Add task</button>
+            <button
+              className="btn btn-primary admin-only"
+              onClick={() => openAddTask("Backlog")}
+            >
+              <Plus size={16} /> Add task
+            </button>
           </div>
         </div>
 
@@ -115,7 +172,6 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           <Lock size={15} /> You can move only the tasks assigned to you. Others are read-only.
         </div>
 
-        {/* Kanban board */}
         {loading && (
           <div style={{ color: "var(--fg-muted)", fontSize: 14, padding: "20px 0" }}>Loading tasks…</div>
         )}
@@ -128,7 +184,11 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                   <div className="kcol-head">
                     <span className="kname">{col}</span>
                     <span className="kcount">{colTasks.length}</span>
-                    <button className="icon-btn kadd admin-only" style={{ width: 26, height: 26 }}>
+                    <button
+                      className="icon-btn kadd admin-only"
+                      style={{ width: 26, height: 26 }}
+                      onClick={() => openAddTask(col)}
+                    >
                       <Plus size={14} />
                     </button>
                   </div>
@@ -173,6 +233,77 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       </div>
 
       <TaskPanel task={selectedTask} open={panelOpen} onClose={() => setPanelOpen(false)} />
+
+      {/* Add Task modal */}
+      {showAddTask && (
+        <div className="modal-scrim" onClick={e => { if (e.target === e.currentTarget) { setShowAddTask(false); reset(); setAssignee(null); } }}>
+          <div className="modal">
+            <div className="modal-head">
+              <span className="modal-title">Add task</span>
+              <button className="icon-btn" onClick={() => { setShowAddTask(false); reset(); setAssignee(null); }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit(onAddTask)}>
+              <div className="form-field">
+                <label>Title *</label>
+                <input
+                  placeholder="What needs to be done?"
+                  {...register("title", { required: "Title is required" })}
+                />
+                {errors.title && <span className="form-error">{errors.title.message}</span>}
+              </div>
+              <div className="form-field">
+                <label>Description</label>
+                <textarea placeholder="Optional details…" {...register("description")} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className="form-field">
+                  <label>Status</label>
+                  <select {...register("status")}>
+                    {COLUMNS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label>Priority</label>
+                  <select {...register("priority")}>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-field">
+                <label>Due date</label>
+                <input type="date" {...register("due_date")} />
+              </div>
+              <div className="form-field">
+                <label>Assignee</label>
+                <MemberSelect
+                  displayValue={assignee?.name ?? ""}
+                  placeholder="Search project members…"
+                  projectId={params.id}
+                  onChange={m => setAssignee(m)}
+                />
+                {assignee && (
+                  <span style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4 }}>
+                    {assignee.email}
+                  </span>
+                )}
+              </div>
+              {addTaskError && <p className="form-error">{addTaskError}</p>}
+              <div className="modal-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => { setShowAddTask(false); reset(); setAssignee(null); }}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={addingTask}>
+                  {addingTask ? "Adding…" : "Add task"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

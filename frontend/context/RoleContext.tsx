@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 
 type Role = "admin" | "member";
 
@@ -15,12 +15,13 @@ const RoleContext = createContext<RoleContextValue>({
 });
 
 export function RoleProvider({ children }: { children: ReactNode }) {
-  const [role, setRoleState] = useState<Role>("admin");
-
-  useEffect(() => {
-    const saved = localStorage.getItem("nexus-role") as Role | null;
-    if (saved === "admin" || saved === "member") setRoleState(saved);
-  }, []);
+  const [role, setRoleState] = useState<Role>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("nexus-role");
+      if (saved === "admin" || saved === "member") return saved;
+    }
+    return "admin";
+  });
 
   function setRole(r: Role) {
     localStorage.setItem("nexus-role", r);
