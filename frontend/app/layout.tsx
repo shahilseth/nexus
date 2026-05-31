@@ -11,6 +11,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      {/* Inline script runs synchronously before paint — prevents dark-mode flash */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('nexus-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')})()` }} />
+      </head>
       <body>
         <AuthProvider>
           <RoleProvider>

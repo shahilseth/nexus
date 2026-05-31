@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import pool from "../db";
+import { requireAuth, AuthRequest } from "../middleware/auth";
 
 const router = Router();
 
@@ -39,10 +40,6 @@ router.post("/login", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "email and password are required" });
   }
   try {
-    const result = await pool.query(
-      "SELECT u.id, u.name, u.email, u.password_hash, COALESCE(pm.role, 'member') as role FROM users u LEFT JOIN project_members pm ON pm.user_id = u.id LIMIT 1",
-      []
-    );
     const userRow = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (userRow.rows.length === 0) {
       return res.status(401).json({ error: "Invalid credentials" });
@@ -52,7 +49,6 @@ router.post("/login", async (req: Request, res: Response) => {
     if (!valid) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
-    // Determine role: if user is owner of any project or has admin role in project_members, treat as admin
     const roleRes = await pool.query(
       "SELECT role FROM project_members WHERE user_id = $1 AND role = 'admin' LIMIT 1",
       [user.id]
@@ -67,6 +63,49 @@ router.post("/login", async (req: Request, res: Response) => {
       token,
       user: { id: user.id, name: user.name, email: user.email, role, created_at: user.created_at },
     });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT /api/auth/profile — update display name
+router.put("/profile", requireAuth, async (req: AuthRequest, res: Response) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: "name is required" });
+  }
+  try {
+    const result = await pool.query(
+      "UPDATE users SET name = $1 WHERE id = $2 RETURNING id, name, email",
+      [name.trim(), req.user!.id]
+    );
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT /api/auth/password — change password
+router.put("/password", requireAuth, async (req: AuthRequest, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "currentPassword and newPassword are required" });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "New password must be at least 6 characters" });
+  }
+  try {
+    const userRow = await pool.query("SELECT * FROM users WHERE id = $1", [req.user!.id]);
+    const user = userRow.rows[0];
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [hash, user.id]);
+    return res.json({ success: true });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });

@@ -6,9 +6,10 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import CommandPalette from "./CommandPalette";
 import BottomNav from "./BottomNav";
+import NotificationPanel from "./NotificationPanel";
 import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/context/RoleContext";
-import { statsApi } from "@/lib/api";
+import { statsApi, notificationsApi } from "@/lib/api";
 
 interface AppShellProps {
   children: ReactNode;
@@ -25,6 +26,8 @@ export interface AppStats {
 
 export default function AppShell({ children }: AppShellProps) {
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [stats, setStats] = useState<AppStats | null>(null);
   const { user, isLoading } = useAuth();
   const { role } = useRole();
@@ -35,9 +38,15 @@ export default function AppShell({ children }: AppShellProps) {
   }, [user, isLoading, router]);
 
   useEffect(() => {
-    if (user) {
-      statsApi.get().then(r => setStats(r.data)).catch(() => {});
-    }
+    if (!user) return;
+    statsApi.get().then(r => setStats(r.data)).catch(() => {});
+    notificationsApi.list()
+      .then(r => {
+        if (Array.isArray(r.data)) {
+          setUnreadCount(r.data.filter((n: { read: boolean }) => !n.read).length);
+        }
+      })
+      .catch(() => {});
   }, [user]);
 
   useEffect(() => {
@@ -51,6 +60,13 @@ export default function AppShell({ children }: AppShellProps) {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  function openNotif() {
+    setNotifOpen(true);
+    if (unreadCount > 0) {
+      notificationsApi.markRead().then(() => setUnreadCount(0)).catch(() => {});
+    }
+  }
+
   if (isLoading) return null;
   if (!user) return null;
 
@@ -58,10 +74,15 @@ export default function AppShell({ children }: AppShellProps) {
     <div className={`app role-${role}`}>
       <Sidebar onOpenCmdk={() => setCmdkOpen(true)} stats={stats} />
       <div className="main">
-        <Topbar onOpenCmdk={() => setCmdkOpen(true)} />
+        <Topbar
+          onOpenCmdk={() => setCmdkOpen(true)}
+          onOpenNotif={openNotif}
+          unreadCount={unreadCount}
+        />
         {children}
       </div>
       <CommandPalette open={cmdkOpen} onClose={() => setCmdkOpen(false)} />
+      <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
       <BottomNav />
     </div>
   );

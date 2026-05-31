@@ -18,6 +18,10 @@ export const authApi = {
     api.post("/api/auth/login", { email, password }),
   signup: (name: string, email: string, password: string) =>
     api.post("/api/auth/signup", { name, email, password }),
+  updateProfile: (data: { name: string }) =>
+    api.put("/api/auth/profile", data),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.put("/api/auth/password", { currentPassword, newPassword }),
 };
 
 // Projects
@@ -68,6 +72,12 @@ export const activityApi = {
 // Stats
 export const statsApi = {
   get: () => api.get("/api/stats"),
+};
+
+// Notifications
+export const notificationsApi = {
+  list: () => api.get("/api/notifications"),
+  markRead: () => api.put("/api/notifications/read"),
 };
 
 export default api;

@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import pool from "../db";
 import { requireAuth, requireAdmin, AuthRequest } from "../middleware/auth";
+import { createNotification } from "../db/notify";
 
 const router = Router();
 router.use(requireAuth);
@@ -77,6 +78,11 @@ router.post("/invite", requireAdmin, async (req: AuthRequest, res: Response) => 
       "INSERT INTO activity_log (project_id, user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4, $5)",
       [project_id, req.user!.id, `invited member`, "member", userId]
     );
+    const projRes = await pool.query("SELECT name FROM projects WHERE id = $1", [project_id]);
+    const projName = projRes.rows[0]?.name || "a project";
+    if (userId !== req.user!.id) {
+      await createNotification(userId, `You were added to "${projName}"`, "member_added");
+    }
     return res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);

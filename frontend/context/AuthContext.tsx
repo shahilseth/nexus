@@ -15,6 +15,7 @@ interface AuthContextValue {
   token: string | null;
   login: (token: string, user: User) => void;
   logout: () => void;
+  updateUser: (updates: Partial<User>) => void;
   isLoading: boolean;
 }
 
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextValue>({
   token: null,
   login: () => {},
   logout: () => {},
+  updateUser: () => {},
   isLoading: true,
 });
 
@@ -50,6 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(newUser);
   }
 
+  function updateUser(updates: Partial<User>) {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      localStorage.setItem("nexus-user", JSON.stringify(updated));
+      return updated;
+    });
+  }
+
   function logout() {
     localStorage.removeItem("nexus-token");
     localStorage.removeItem("nexus-user");
@@ -60,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

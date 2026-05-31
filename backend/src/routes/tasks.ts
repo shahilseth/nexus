@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import pool from "../db";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { createNotification } from "../db/notify";
 
 const router = Router();
 router.use(requireAuth);
@@ -49,7 +50,12 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       [project_id, title, description || null, assignee_id || null, priority || "medium", status || "Backlog", due_date || null, ai_suggested || false]
     );
     const task = result.rows[0];
-    if (assignee_id) await ensureMember(project_id, assignee_id);
+    if (assignee_id) {
+      await ensureMember(project_id, assignee_id);
+      if (assignee_id !== req.user!.id) {
+        await createNotification(assignee_id, `You were assigned to "${title}"`, "task_assigned");
+      }
+    }
     await pool.query(
       "INSERT INTO activity_log (project_id, user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4, $5)",
       [project_id, req.user!.id, `created task "${title}"`, "task", task.id]
@@ -101,7 +107,20 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
        WHERE id = $8 RETURNING *`,
       [title, description, assignee_id, priority, status, due_date, ai_suggested, id]
     );
-    if (assignee_id) await ensureMember(task.project_id, assignee_id);
+    if (assignee_id) {
+      await ensureMember(task.project_id, assignee_id);
+      if (assignee_id !== task.assignee_id && assignee_id !== userId) {
+        const taskTitle = title || task.title;
+        await createNotification(assignee_id, `You were assigned to "${taskTitle}"`, "task_assigned");
+      }
+    }
+    if (status && status !== task.status && task.assignee_id && task.assignee_id !== userId) {
+      await createNotification(
+        task.assignee_id,
+        `Your task "${task.title}" was moved to ${status}`,
+        "status_changed"
+      );
+    }
     await pool.query(
       "INSERT INTO activity_log (project_id, user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4, $5)",
       [task.project_id, userId, `updated "${task.title}"`, "task", id]

@@ -4,9 +4,11 @@ import { Search, Plus, Bell } from "lucide-react";
 
 interface TopbarProps {
   onOpenCmdk: () => void;
+  onOpenNotif: () => void;
+  unreadCount: number;
 }
 
-export default function Topbar({ onOpenCmdk }: TopbarProps) {
+export default function Topbar({ onOpenCmdk, onOpenNotif, unreadCount }: TopbarProps) {
   return (
     <header className="topbar">
       <div className="search-trigger" onClick={onOpenCmdk} style={{ cursor: "pointer" }}>
@@ -18,9 +20,12 @@ export default function Topbar({ onOpenCmdk }: TopbarProps) {
         <button className="icon-btn" onClick={onOpenCmdk} title="Quick create">
           <Plus size={18} />
         </button>
-        <button className="icon-btn" title="Notifications">
-          <Bell size={18} />
-        </button>
+        <div className="notif-bell-wrap">
+          <button className="icon-btn" title="Notifications" onClick={onOpenNotif}>
+            <Bell size={18} />
+          </button>
+          {unreadCount > 0 && <span className="notif-dot" />}
+        </div>
       </div>
     </header>
   );

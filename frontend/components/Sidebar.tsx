@@ -56,9 +56,9 @@ export default function Sidebar({ onOpenCmdk, stats }: SidebarProps) {
         <button className="nav-item" style={{ background: "none", border: "none", width: "100%", textAlign: "left" }} onClick={onOpenCmdk}>
           <Search size={18} /> Search <span className="kbd" style={{ marginLeft: "auto" }}>⌘K</span>
         </button>
-        <a className="nav-item" href="#">
+        <Link className={`nav-item${pathname === "/settings" ? " active" : ""}`} href="/settings">
           <Settings size={18} /> Settings
-        </a>
+        </Link>
         <a className="nav-item" href="#">
           <CircleHelp size={18} /> Help
         </a>

@@ -59,3 +59,13 @@ CREATE TABLE IF NOT EXISTS activity_log (
   entity_id   UUID,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message     TEXT NOT NULL,
+  type        TEXT NOT NULL DEFAULT 'info', -- 'task_assigned' | 'status_changed' | 'member_added' | 'task_overdue'
+  read        BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
