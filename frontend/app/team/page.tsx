@@ -29,18 +29,6 @@ interface InviteForm {
   role: string;
 }
 
-const STATIC_MEMBERS: Member[] = [
-  { id: "1", name: "Shahil Seth",  email: "shahil@nexus.app", role: "admin",  task_count: 6,  workload_pct: 66, workload_label: "Balanced",    joined: "Joined Jan 2024" },
-  { id: "2", name: "Aria Sen",     email: "aria@nexus.app",   role: "member", task_count: 8,  workload_pct: 88, workload_label: "Busy",         joined: "Joined Jan 2024" },
-  { id: "3", name: "Riya Kapoor",  email: "riya@nexus.app",   role: "member", task_count: 9,  workload_pct: 99, workload_label: "At capacity",  joined: "Joined Mar 2024" },
-  { id: "4", name: "Marcus Lee",   email: "marcus@nexus.app", role: "member", task_count: 7,  workload_pct: 77, workload_label: "Busy",         joined: "Joined Feb 2024" },
-  { id: "5", name: "Devon Park",   email: "devon@nexus.app",  role: "member", task_count: 5,  workload_pct: 55, workload_label: "Balanced",     joined: "Joined Jun 2024" },
-  { id: "6", name: "Lena Fischer", email: "lena@nexus.app",   role: "member", task_count: 4,  workload_pct: 44, workload_label: "Balanced",     joined: "Joined Sep 2024" },
-  { id: "7", name: "Tomás Ruiz",   email: "tomas@nexus.app",  role: "member", task_count: 6,  workload_pct: 66, workload_label: "Balanced",     joined: "Joined Nov 2024" },
-  { id: "8", name: "Mei Chen",     email: "mei@nexus.app",    role: "member", task_count: 3,  workload_pct: 33, workload_label: "Light",        joined: "Joined Jan 2025" },
-  { id: "9", name: "Jordan Blake", email: "jordan@nexus.app", role: "member", task_count: 5,  workload_pct: 55, workload_label: "Balanced",     joined: "Joined Mar 2025" },
-];
-
 function workloadColor(pct: number) {
   if (pct >= 90) return "var(--risk-fg)";
   if (pct >= 75) return "var(--warn-fg)";
@@ -57,26 +45,89 @@ function formatJoined(dateStr?: string) {
   return "Joined " + d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
+function MemberSkeleton() {
+  return (
+    <div className="member-card" style={{ opacity: 0.55 }}>
+      <div className="mc-top">
+        <span className="skeleton" style={{ width: 44, height: 44, borderRadius: "50%", flexShrink: 0 }} />
+        <div className="grow" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span className="skeleton" style={{ width: "58%", height: 16 }} />
+          <span className="skeleton" style={{ width: "78%", height: 13 }} />
+        </div>
+        <span className="skeleton" style={{ width: 62, height: 24, borderRadius: 999 }} />
+      </div>
+      <div className="mc-stats" style={{ marginTop: 18 }}>
+        <div className="mc-stat">
+          <span className="skeleton" style={{ width: 32, height: 20, marginBottom: 6 }} />
+          <span className="skeleton" style={{ width: 80, height: 13 }} />
+        </div>
+        <div className="mc-stat">
+          <span className="skeleton" style={{ width: 40, height: 20, marginBottom: 6 }} />
+          <span className="skeleton" style={{ width: 60, height: 13 }} />
+        </div>
+      </div>
+      <div className="mc-work" style={{ marginTop: 18 }}>
+        <div className="wrow" style={{ marginBottom: 7 }}>
+          <span className="skeleton" style={{ width: 58, height: 13 }} />
+          <span className="skeleton" style={{ width: 48, height: 13 }} />
+        </div>
+        <span className="skeleton" style={{ width: "100%", height: 6, borderRadius: 999 }} />
+      </div>
+      <div className="mc-foot" style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+        <span className="skeleton" style={{ width: 100, height: 13 }} />
+      </div>
+    </div>
+  );
+}
+
 export default function TeamPage() {
-  const [members, setMembers] = useState<Member[]>(STATIC_MEMBERS);
+  const [members, setMembers] = useState<Member[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<InviteForm>({
     defaultValues: { role: "member" },
   });
 
   useEffect(() => {
+    setLoading(true);
     membersApi.list()
-      .then(r => { if (Array.isArray(r.data) && r.data.length > 0) setMembers(r.data); })
-      .catch(() => {});
+      .then(r => { if (Array.isArray(r.data)) setMembers(r.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
     projectsApi.list()
       .then(r => { if (Array.isArray(r.data)) setProjects(r.data); })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    function handleClick(e: MouseEvent) {
+      const target = e.target as Element;
+      if (!target.closest(".member-menu-wrap")) setOpenMenuId(null);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [openMenuId]);
+
+  async function removeMember(userId: string) {
+    setRemoving(userId);
+    setOpenMenuId(null);
+    try {
+      await membersApi.remove(userId);
+      setMembers(prev => prev.filter(m => (m.id ?? m.user_id) !== userId));
+    } catch {
+      // server enforces admin-only; silently ignore UI errors
+    } finally {
+      setRemoving(null);
+    }
+  }
 
   async function onInvite(data: InviteForm) {
     setInviteError("");
@@ -86,6 +137,9 @@ export default function TeamPage() {
       await membersApi.invite(data.project_id, data.email, data.role);
       setInviteSuccess(`${data.email} has been invited.`);
       reset();
+      membersApi.list()
+        .then(r => { if (Array.isArray(r.data)) setMembers(r.data); })
+        .catch(() => {});
       setTimeout(() => { setShowModal(false); setInviteSuccess(""); }, 1500);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
@@ -105,7 +159,9 @@ export default function TeamPage() {
           <div className="grow">
             <div className="page-title">Team</div>
             <div className="page-sub">
-              {displayed.length} people in Nexus Labs · {adminCount} admin, {displayed.length - adminCount} members
+              {loading
+                ? "Loading…"
+                : `${displayed.length} people in Nexus Labs · ${adminCount} admin, ${displayed.length - adminCount} members`}
             </div>
           </div>
           <button className="btn btn-primary admin-only" onClick={() => setShowModal(true)}>
@@ -118,7 +174,14 @@ export default function TeamPage() {
         </div>
 
         <div className="team-grid">
-          {displayed.map(m => {
+          {loading ? (
+            <>
+              <MemberSkeleton />
+              <MemberSkeleton />
+              <MemberSkeleton />
+            </>
+          ) : displayed.map(m => {
+            const userId = m.id ?? m.user_id ?? m.email;
             const taskCount = Number(m.task_count ?? 0);
             const pct = Number(m.workload_pct ?? 0);
             const wLabel = m.workload_label ?? "Light";
@@ -126,9 +189,11 @@ export default function TeamPage() {
             const barClass = workloadBarClass(pct);
             const isAdmin = m.role === "admin";
             const joined = m.joined ?? formatJoined(m.joined_at ?? m.created_at);
+            const isMenuOpen = openMenuId === userId;
+            const isRemoving = removing === userId;
 
             return (
-              <div className="member-card" key={m.id || m.name}>
+              <div className="member-card" key={m.id || m.name} style={{ opacity: isRemoving ? 0.5 : 1, transition: "opacity .2s" }}>
                 <div className="mc-top">
                   <Avatar name={m.name} size="lg" />
                   <div className="grow">
@@ -160,9 +225,27 @@ export default function TeamPage() {
                 </div>
                 <div className="mc-foot">
                   <span className="joined">{joined}</span>
-                  <button className="icon-btn menu admin-only" style={{ width: 28, height: 28 }} title="Remove member">
-                    <Ellipsis size={16} />
-                  </button>
+                  <div className="member-menu-wrap admin-only">
+                    <button
+                      className="icon-btn"
+                      style={{ width: 28, height: 28 }}
+                      title="Member options"
+                      disabled={isRemoving}
+                      onClick={() => setOpenMenuId(isMenuOpen ? null : (userId ?? null))}
+                    >
+                      <Ellipsis size={16} />
+                    </button>
+                    {isMenuOpen && (
+                      <div className="member-menu">
+                        <button
+                          className="member-menu-item danger"
+                          onClick={() => userId && removeMember(userId)}
+                        >
+                          Remove member
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -170,7 +253,6 @@ export default function TeamPage() {
         </div>
       </div>
 
-      {/* Invite Member Modal */}
       {showModal && (
         <div className="modal-scrim" onClick={e => { if (e.target === e.currentTarget) { setShowModal(false); reset(); } }}>
           <div className="modal">

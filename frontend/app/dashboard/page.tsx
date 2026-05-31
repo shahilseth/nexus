@@ -138,6 +138,8 @@ export default function DashboardPage() {
               <tbody>
                 {loadingProjects ? (
                   <tr><td colSpan={5} style={{ color: "var(--fg-muted)", fontSize: 14, padding: "18px 16px" }}>Loading…</td></tr>
+                ) : projects.length === 0 ? (
+                  <tr><td colSpan={5} style={{ color: "var(--fg-muted)", fontSize: 14, padding: "18px 16px" }}>No projects yet.</td></tr>
                 ) : projects.map(p => (
                   <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => window.location.href = `/projects/${p.id}`}>
                     <td className="cell-strong">{p.name}</td>
@@ -225,4 +227,3 @@ export default function DashboardPage() {
   );
 }
 
-const STATIC_ACTIVITY: Activity[] = [];

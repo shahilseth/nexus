@@ -26,12 +26,18 @@ export default function AppShell({ children }: AppShellProps) {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [stats, setStats] = useState<AppStats | null>(null);
   const { user, isLoading } = useAuth();
-  const { role } = useRole();
+  const { role, setRole } = useRole();
   const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && !user) router.push("/login");
   }, [user, isLoading, router]);
+
+  useEffect(() => {
+    if (user?.role === "admin" || user?.role === "member") {
+      setRole(user.role);
+    }
+  }, [user?.role]);
 
   useEffect(() => {
     if (user) {

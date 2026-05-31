@@ -74,7 +74,7 @@ router.post("/invite", requireAdmin, async (req: AuthRequest, res: Response) => 
 router.delete("/:id", requireAdmin, async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   try {
-    await pool.query("DELETE FROM project_members WHERE id = $1", [id]);
+    await pool.query("DELETE FROM project_members WHERE user_id = $1", [id]);
     return res.json({ success: true });
   } catch (err) {
     console.error(err);
