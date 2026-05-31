@@ -55,7 +55,8 @@ export const membersApi = {
     api.get(projectId ? `/api/members?projectId=${projectId}` : "/api/members"),
   invite: (project_id: string, email: string, role?: string) =>
     api.post("/api/members/invite", { project_id, email, role }),
-  remove: (id: string) => api.delete(`/api/members/${id}`),
+  remove: (userId: string, projectId?: string) =>
+    api.delete(projectId ? `/api/members/${userId}?projectId=${projectId}` : `/api/members/${userId}`),
 };
 
 // Activity

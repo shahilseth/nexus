@@ -474,6 +474,19 @@ a { color: var(--fg); text-decoration: none; }
 .mc-foot .menu { margin-left: auto; }
 
 /* ============================================================
+   Project detail — team member rows
+   ============================================================ */
+.pm-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 0; border-bottom: 1px solid var(--border);
+}
+.pm-row:last-child { border-bottom: none; }
+.pm-info { flex: 1; min-width: 0; }
+.pm-name { font-size: 14.5px; color: var(--fg); line-height: 1.2; }
+.pm-email { font-size: 12.5px; color: var(--fg-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-empty { font-size: 14px; color: var(--fg-muted); padding: 14px 0; }
+
+/* ============================================================
    Command palette
    ============================================================ */
 .cmdk-scrim {

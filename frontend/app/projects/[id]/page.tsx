@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, UserPlus, Calendar, Lock, Link as LinkIcon, X } from "lucide-react";
+import { Plus, Calendar, Lock, Link as LinkIcon, X, UserPlus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import AppShell from "@/components/AppShell";
 import Avatar from "@/components/Avatar";
 import Badge, { statusTone } from "@/components/Badge";
 import TaskPanel, { TaskData } from "@/components/TaskPanel";
 import MemberSelect, { MemberOption } from "@/components/MemberSelect";
-import { projectsApi, tasksApi } from "@/lib/api";
+import { projectsApi, tasksApi, membersApi } from "@/lib/api";
 import { useRole } from "@/context/RoleContext";
 import { useAuth } from "@/context/AuthContext";
+
+/* ─── Interfaces ─── */
 
 interface Task {
   id: string;
@@ -27,6 +29,16 @@ interface Task {
   blocks?: string;
 }
 
+interface TeamMember {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  role: string;
+  task_count?: number;
+  joined_at?: string;
+}
+
 interface AddTaskForm {
   title: string;
   description: string;
@@ -35,7 +47,11 @@ interface AddTaskForm {
   status: string;
 }
 
+/* ─── Constants ─── */
+
 const COLUMNS = ["Backlog", "Todo", "In Progress", "Review", "Done"];
+
+/* ─── Helpers ─── */
 
 function formatDue(dateStr?: string): string | undefined {
   if (!dateStr) return undefined;
@@ -44,31 +60,58 @@ function formatDue(dateStr?: string): string | undefined {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-interface ProjectMember { name: string; }
+/* ─── Skeleton rows ─── */
+
+function MemberRowSkeleton() {
+  return (
+    <div className="pm-row" style={{ opacity: 0.55 }}>
+      <span className="skeleton" style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0 }} />
+      <div className="pm-info">
+        <span className="skeleton" style={{ width: "38%", height: 14, marginBottom: 6 }} />
+        <span className="skeleton" style={{ width: "55%", height: 12 }} />
+      </div>
+      <span className="skeleton" style={{ width: 58, height: 22, borderRadius: 999 }} />
+      <span style={{ width: 28, flexShrink: 0 }} />
+    </div>
+  );
+}
+
+/* ─── Page ─── */
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
+  /* tasks */
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projectName, setProjectName] = useState("");
   const [projectStatus, setProjectStatus] = useState("On Track");
-  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<TaskData | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
 
+  /* add-task modal */
   const [showAddTask, setShowAddTask] = useState(false);
-  const [addTaskStatus, setAddTaskStatus] = useState("Backlog");
   const [assignee, setAssignee] = useState<MemberOption | null>(null);
   const [addTaskError, setAddTaskError] = useState("");
   const [addingTask, setAddingTask] = useState(false);
 
+  /* team members section */
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [addMemberError, setAddMemberError] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+  const [removingMember, setRemovingMember] = useState<string | null>(null);
+  const addMemberWrapRef = useRef<HTMLDivElement>(null);
+
   const { role } = useRole();
   const { user } = useAuth();
   const currentUserName = user?.name || "";
+  const isAdmin = role === "admin";
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<AddTaskForm>({
     defaultValues: { priority: "medium", status: "Backlog" },
   });
 
+  /* ── Fetch project data ── */
   useEffect(() => {
     setLoading(true);
     projectsApi.get(params.id)
@@ -76,13 +119,86 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         if (Array.isArray(r.data.tasks)) setTasks(r.data.tasks);
         if (r.data.name) setProjectName(r.data.name);
         if (r.data.status) setProjectStatus(r.data.status);
-        if (Array.isArray(r.data.members))
-          setProjectMembers(r.data.members.map((m: { name: string }) => ({ name: m.name })));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [params.id]);
 
+  /* ── Fetch project members ── */
+  function loadMembers() {
+    setMembersLoading(true);
+    membersApi.list(params.id)
+      .then(r => {
+        if (Array.isArray(r.data)) {
+          setTeamMembers(r.data.map((m: {
+            id: string; user_id: string; name: string; email: string;
+            role: string; task_count?: number; joined_at?: string;
+          }) => ({
+            id: m.id,
+            user_id: m.user_id,
+            name: m.name,
+            email: m.email,
+            role: m.role,
+            task_count: m.task_count,
+            joined_at: m.joined_at,
+          })));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setMembersLoading(false));
+  }
+
+  useEffect(() => { loadMembers(); }, [params.id]);
+
+  /* Close "Add Member" input on outside click */
+  useEffect(() => {
+    if (!showAddMember) return;
+    function handle(e: MouseEvent) {
+      if (addMemberWrapRef.current && !addMemberWrapRef.current.contains(e.target as Node)) {
+        setShowAddMember(false);
+        setAddMemberError("");
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [showAddMember]);
+
+  /* ── Add member ── */
+  async function handleAddMember(member: MemberOption) {
+    setAddingMember(true);
+    setAddMemberError("");
+    try {
+      await membersApi.invite(params.id, member.email, "member");
+      setTeamMembers(prev => [...prev, {
+        id: "",
+        user_id: member.id,
+        name: member.name,
+        email: member.email,
+        role: "member",
+      }]);
+      setShowAddMember(false);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setAddMemberError(err.response?.data?.error || "Failed to add member");
+    } finally {
+      setAddingMember(false);
+    }
+  }
+
+  /* ── Remove member ── */
+  async function handleRemoveMember(userId: string) {
+    setRemovingMember(userId);
+    try {
+      await membersApi.remove(userId, params.id);
+      setTeamMembers(prev => prev.filter(m => m.user_id !== userId));
+    } catch {
+      // server enforces admin-only; silently ignore
+    } finally {
+      setRemovingMember(null);
+    }
+  }
+
+  /* ── Task helpers ── */
   function openTask(task: Task) {
     setSelectedTask({
       id: task.id,
@@ -100,7 +216,6 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   }
 
   function openAddTask(col = "Backlog") {
-    setAddTaskStatus(col);
     setAssignee(null);
     setAddTaskError("");
     reset({ priority: "medium", status: col, title: "", description: "", due_date: "" });
@@ -120,11 +235,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         due_date: data.due_date || undefined,
         assignee_id: assignee?.id || undefined,
       });
-      const newTask: Task = {
-        ...res.data,
-        assignee_name: assignee?.name,
-      };
-      setTasks(prev => [newTask, ...prev]);
+      setTasks(prev => [{ ...res.data, assignee_name: assignee?.name }, ...prev]);
       setShowAddTask(false);
       reset();
       setAssignee(null);
@@ -136,9 +247,12 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     }
   }
 
+  /* ─── Render ─── */
   return (
     <AppShell>
       <div className="page">
+
+        {/* ── Page header ── */}
         <div className="page-head">
           <div className="grow">
             <div style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 8 }}>
@@ -148,15 +262,15 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               <div className="page-title">{projectName}</div>
               <Badge tone={statusTone(projectStatus)} dot>{projectStatus}</Badge>
             </div>
-            <div className="page-sub">{loading ? "Loading…" : `${tasks.length} tasks`}</div>
+            <div className="page-sub">{loading ? "Loading…" : `${tasks.length} tasks · ${teamMembers.length} members`}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div className="avatar-stack" style={{ marginRight: 4 }}>
-              {projectMembers.slice(0, 4).map(m => (
-                <Avatar key={m.name} name={m.name} size="sm" />
+              {teamMembers.slice(0, 4).map(m => (
+                <Avatar key={m.user_id} name={m.name} size="sm" />
               ))}
-              {projectMembers.length > 4 && (
-                <span className="more">+{projectMembers.length - 4}</span>
+              {teamMembers.length > 4 && (
+                <span className="more">+{teamMembers.length - 4}</span>
               )}
             </div>
             <button
@@ -169,9 +283,88 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         </div>
 
         <div className="member-hint section">
-          <Lock size={15} /> You can move only the tasks assigned to you. Others are read-only.
+          <Lock size={15} /> You can view tasks and move only the ones assigned to you.
         </div>
 
+        {/* ── Team Members section ── */}
+        <div className="card card-pad section">
+          <div className="section-head">
+            <span className="section-title">Team Members</span>
+            <div className="grow" />
+            {isAdmin && (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => { setShowAddMember(v => !v); setAddMemberError(""); }}
+                disabled={addingMember}
+              >
+                <UserPlus size={15} /> Add member
+              </button>
+            )}
+          </div>
+
+          {/* Inline Add Member search */}
+          {showAddMember && (
+            <div ref={addMemberWrapRef} style={{ marginBottom: 12 }}>
+              <MemberSelect
+                placeholder="Search workspace members by name or email…"
+                onChange={handleAddMember}
+              />
+              {addMemberError && (
+                <p className="form-error" style={{ marginTop: 6 }}>{addMemberError}</p>
+              )}
+            </div>
+          )}
+
+          {/* Skeleton */}
+          {membersLoading && (
+            <>
+              <MemberRowSkeleton />
+              <MemberRowSkeleton />
+              <MemberRowSkeleton />
+            </>
+          )}
+
+          {/* Empty state */}
+          {!membersLoading && teamMembers.length === 0 && (
+            <div className="pm-empty">
+              No members yet.{isAdmin ? " Use Add member above to invite someone." : ""}
+            </div>
+          )}
+
+          {/* Member rows */}
+          {!membersLoading && teamMembers.map(m => {
+            const isRemoving = removingMember === m.user_id;
+            return (
+              <div
+                className="pm-row"
+                key={m.user_id || m.email}
+                style={{ opacity: isRemoving ? 0.45 : 1, transition: "opacity .2s" }}
+              >
+                <Avatar name={m.name} size="sm" />
+                <div className="pm-info">
+                  <div className="pm-name">{m.name}</div>
+                  <div className="pm-email">{m.email}</div>
+                </div>
+                <span className={`badge role${m.role === "admin" ? "" : " member"}`}>
+                  {m.role === "admin" ? "Admin" : "Member"}
+                </span>
+                {isAdmin && (
+                  <button
+                    className="icon-btn"
+                    style={{ width: 28, height: 28, flexShrink: 0 }}
+                    title="Remove from project"
+                    disabled={isRemoving}
+                    onClick={() => handleRemoveMember(m.user_id)}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Kanban board ── */}
         {loading && (
           <div style={{ color: "var(--fg-muted)", fontSize: 14, padding: "20px 0" }}>Loading tasks…</div>
         )}
@@ -204,7 +397,8 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                           <div className={`kt${task.status === "Done" ? " done" : ""}`}>{task.title}</div>
                           <div className="kmeta">
                             <span className={`prio ${task.priority}`}>
-                              <span className="bar" />{task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                              <span className="bar" />
+                              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
                             </span>
                             <div className="grow" />
                             {isMine
@@ -234,9 +428,12 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
       <TaskPanel task={selectedTask} open={panelOpen} onClose={() => setPanelOpen(false)} />
 
-      {/* Add Task modal */}
+      {/* ── Add Task modal ── */}
       {showAddTask && (
-        <div className="modal-scrim" onClick={e => { if (e.target === e.currentTarget) { setShowAddTask(false); reset(); setAssignee(null); } }}>
+        <div
+          className="modal-scrim"
+          onClick={e => { if (e.target === e.currentTarget) { setShowAddTask(false); reset(); setAssignee(null); } }}
+        >
           <div className="modal">
             <div className="modal-head">
               <span className="modal-title">Add task</span>
@@ -293,7 +490,11 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               </div>
               {addTaskError && <p className="form-error">{addTaskError}</p>}
               <div className="modal-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => { setShowAddTask(false); reset(); setAssignee(null); }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => { setShowAddTask(false); reset(); setAssignee(null); }}
+                >
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={addingTask}>
