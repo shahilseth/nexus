@@ -9,7 +9,7 @@ import Avatar from "@/components/Avatar";
 import Badge, { statusTone } from "@/components/Badge";
 import TaskPanel, { TaskData } from "@/components/TaskPanel";
 import MemberSelect, { MemberOption } from "@/components/MemberSelect";
-import { projectsApi, tasksApi, membersApi } from "@/lib/api";
+import { projectsApi, tasksApi, membersApi, activityApi } from "@/lib/api";
 import { useRole } from "@/context/RoleContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -39,6 +39,13 @@ interface TeamMember {
   joined_at?: string;
 }
 
+interface ActivityItem {
+  id: string;
+  user_name: string;
+  action: string;
+  created_at: string;
+}
+
 interface AddTaskForm {
   title: string;
   description: string;
@@ -60,7 +67,17 @@ function formatDue(dateStr?: string): string | undefined {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/* ─── Skeleton rows ─── */
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${Math.max(mins, 1)} min${mins !== 1 ? "s" : ""} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? "s" : ""} ago`;
+  if (hrs < 48) return "Yesterday";
+  return `${Math.floor(hrs / 24)} days ago`;
+}
+
+/* ─── Skeletons ─── */
 
 function MemberRowSkeleton() {
   return (
@@ -79,7 +96,7 @@ function MemberRowSkeleton() {
 /* ─── Page ─── */
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
-  /* tasks */
+  /* tasks & project */
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projectName, setProjectName] = useState("");
   const [projectStatus, setProjectStatus] = useState("On Track");
@@ -87,13 +104,17 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const [selectedTask, setSelectedTask] = useState<TaskData | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
 
+  /* drag-and-drop */
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+
   /* add-task modal */
   const [showAddTask, setShowAddTask] = useState(false);
   const [assignee, setAssignee] = useState<MemberOption | null>(null);
   const [addTaskError, setAddTaskError] = useState("");
   const [addingTask, setAddingTask] = useState(false);
 
-  /* team members section */
+  /* team members */
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -101,6 +122,10 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const [addingMember, setAddingMember] = useState(false);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const addMemberWrapRef = useRef<HTMLDivElement>(null);
+
+  /* activity */
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
 
   const { role } = useRole();
   const { user } = useAuth();
@@ -111,7 +136,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     defaultValues: { priority: "medium", status: "Backlog" },
   });
 
-  /* ── Fetch project data ── */
+  /* ── Fetch project ── */
   useEffect(() => {
     setLoading(true);
     projectsApi.get(params.id)
@@ -124,7 +149,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       .finally(() => setLoading(false));
   }, [params.id]);
 
-  /* ── Fetch project members ── */
+  /* ── Fetch members ── */
   function loadMembers() {
     setMembersLoading(true);
     membersApi.list(params.id)
@@ -150,7 +175,16 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
   useEffect(() => { loadMembers(); }, [params.id]);
 
-  /* Close "Add Member" input on outside click */
+  /* ── Fetch activity ── */
+  useEffect(() => {
+    setActivityLoading(true);
+    activityApi.list(params.id)
+      .then(r => { if (Array.isArray(r.data)) setActivity(r.data); })
+      .catch(() => {})
+      .finally(() => setActivityLoading(false));
+  }, [params.id]);
+
+  /* Close add-member on outside click */
   useEffect(() => {
     if (!showAddMember) return;
     function handle(e: MouseEvent) {
@@ -163,18 +197,50 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     return () => document.removeEventListener("mousedown", handle);
   }, [showAddMember]);
 
-  /* ── Add member ── */
+  /* ── Move task (DnD + select) ── */
+  async function moveTask(task: Task, newStatus: string) {
+    if (task.status === newStatus) return;
+    const prevStatus = task.status;
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
+    try {
+      await tasksApi.update(task.id, { status: newStatus });
+      // Refresh activity after move
+      activityApi.list(params.id)
+        .then(r => { if (Array.isArray(r.data)) setActivity(r.data); })
+        .catch(() => {});
+    } catch {
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: prevStatus } : t));
+    }
+  }
+
+  /* ── DnD handlers ── */
+  function handleDragStart(e: React.DragEvent, task: Task) {
+    setDraggingId(task.id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null);
+    setDragOverCol(null);
+  }
+
+  async function handleDrop(e: React.DragEvent, col: string) {
+    e.preventDefault();
+    setDragOverCol(null);
+    if (!draggingId) return;
+    const task = tasks.find(t => t.id === draggingId);
+    if (task) await moveTask(task, col);
+    setDraggingId(null);
+  }
+
+  /* ── Add / remove members ── */
   async function handleAddMember(member: MemberOption) {
     setAddingMember(true);
     setAddMemberError("");
     try {
       await membersApi.invite(params.id, member.email, "member");
       setTeamMembers(prev => [...prev, {
-        id: "",
-        user_id: member.id,
-        name: member.name,
-        email: member.email,
-        role: "member",
+        id: "", user_id: member.id, name: member.name, email: member.email, role: "member",
       }]);
       setShowAddMember(false);
     } catch (e: unknown) {
@@ -185,20 +251,19 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     }
   }
 
-  /* ── Remove member ── */
   async function handleRemoveMember(userId: string) {
     setRemovingMember(userId);
     try {
       await membersApi.remove(userId, params.id);
       setTeamMembers(prev => prev.filter(m => m.user_id !== userId));
     } catch {
-      // server enforces admin-only; silently ignore
+      // server enforces admin-only
     } finally {
       setRemovingMember(null);
     }
   }
 
-  /* ── Task helpers ── */
+  /* ── Task panel ── */
   function openTask(task: Task) {
     setSelectedTask({
       id: task.id,
@@ -215,6 +280,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     setPanelOpen(true);
   }
 
+  /* ── Add task modal ── */
   function openAddTask(col = "Backlog") {
     setAssignee(null);
     setAddTaskError("");
@@ -236,6 +302,8 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         assignee_id: assignee?.id || undefined,
       });
       setTasks(prev => [{ ...res.data, assignee_name: assignee?.name }, ...prev]);
+      // If assignee is new to project, they'll appear after next member refresh
+      if (assignee) loadMembers();
       setShowAddTask(false);
       reset();
       setAssignee(null);
@@ -252,7 +320,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     <AppShell>
       <div className="page">
 
-        {/* ── Page header ── */}
+        {/* ── Header ── */}
         <div className="page-head">
           <div className="grow">
             <div style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 8 }}>
@@ -262,7 +330,9 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               <div className="page-title">{projectName}</div>
               <Badge tone={statusTone(projectStatus)} dot>{projectStatus}</Badge>
             </div>
-            <div className="page-sub">{loading ? "Loading…" : `${tasks.length} tasks · ${teamMembers.length} members`}</div>
+            <div className="page-sub">
+              {loading ? "Loading…" : `${tasks.length} tasks · ${teamMembers.length} members`}
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div className="avatar-stack" style={{ marginRight: 4 }}>
@@ -273,10 +343,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                 <span className="more">+{teamMembers.length - 4}</span>
               )}
             </div>
-            <button
-              className="btn btn-primary admin-only"
-              onClick={() => openAddTask("Backlog")}
-            >
+            <button className="btn btn-primary admin-only" onClick={() => openAddTask("Backlog")}>
               <Plus size={16} /> Add task
             </button>
           </div>
@@ -284,84 +351,6 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
 
         <div className="member-hint section">
           <Lock size={15} /> You can view tasks and move only the ones assigned to you.
-        </div>
-
-        {/* ── Team Members section ── */}
-        <div className="card card-pad section">
-          <div className="section-head">
-            <span className="section-title">Team Members</span>
-            <div className="grow" />
-            {isAdmin && (
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={() => { setShowAddMember(v => !v); setAddMemberError(""); }}
-                disabled={addingMember}
-              >
-                <UserPlus size={15} /> Add member
-              </button>
-            )}
-          </div>
-
-          {/* Inline Add Member search */}
-          {showAddMember && (
-            <div ref={addMemberWrapRef} style={{ marginBottom: 12 }}>
-              <MemberSelect
-                placeholder="Search workspace members by name or email…"
-                onChange={handleAddMember}
-              />
-              {addMemberError && (
-                <p className="form-error" style={{ marginTop: 6 }}>{addMemberError}</p>
-              )}
-            </div>
-          )}
-
-          {/* Skeleton */}
-          {membersLoading && (
-            <>
-              <MemberRowSkeleton />
-              <MemberRowSkeleton />
-              <MemberRowSkeleton />
-            </>
-          )}
-
-          {/* Empty state */}
-          {!membersLoading && teamMembers.length === 0 && (
-            <div className="pm-empty">
-              No members yet.{isAdmin ? " Use Add member above to invite someone." : ""}
-            </div>
-          )}
-
-          {/* Member rows */}
-          {!membersLoading && teamMembers.map(m => {
-            const isRemoving = removingMember === m.user_id;
-            return (
-              <div
-                className="pm-row"
-                key={m.user_id || m.email}
-                style={{ opacity: isRemoving ? 0.45 : 1, transition: "opacity .2s" }}
-              >
-                <Avatar name={m.name} size="sm" />
-                <div className="pm-info">
-                  <div className="pm-name">{m.name}</div>
-                  <div className="pm-email">{m.email}</div>
-                </div>
-                <span className={`badge role${m.role === "admin" ? "" : " member"}`}>
-                  {m.role === "admin" ? "Admin" : "Member"}
-                </span>
-                {isAdmin && (
-                  <button
-                    className="icon-btn"
-                    style={{ width: 28, height: 28, flexShrink: 0 }}
-                    title="Remove from project"
-                    disabled={isRemoving}
-                    onClick={() => handleRemoveMember(m.user_id)}
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            );
-          })}
         </div>
 
         {/* ── Kanban board ── */}
@@ -372,8 +361,20 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           <div className="board">
             {COLUMNS.map(col => {
               const colTasks = tasks.filter(t => t.status === col);
+              const isOver = dragOverCol === col;
               return (
-                <div className="kcol" key={col}>
+                <div
+                  className="kcol"
+                  key={col}
+                  onDragEnter={e => { e.preventDefault(); setDragOverCol(col); }}
+                  onDragOver={e => e.preventDefault()}
+                  onDragLeave={e => {
+                    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+                      setDragOverCol(null);
+                    }
+                  }}
+                  onDrop={e => handleDrop(e, col)}
+                >
                   <div className="kcol-head">
                     <span className="kname">{col}</span>
                     <span className="kcount">{colTasks.length}</span>
@@ -385,13 +386,18 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                       <Plus size={14} />
                     </button>
                   </div>
-                  <div className="kcol-body">
+                  <div className={`kcol-body${isOver ? " drag-over" : ""}`}>
                     {colTasks.map(task => {
                       const isMine = task.assignee_name === currentUserName;
+                      const canMove = isAdmin || isMine;
+                      const isDragging = draggingId === task.id;
                       return (
                         <div
                           key={task.id}
-                          className={`kcard${task.blocked_by ? " blocked" : ""}${isMine ? " mine" : ""}`}
+                          className={`kcard${task.blocked_by ? " blocked" : ""}${isMine ? " mine" : ""}${isDragging ? " dragging" : ""}`}
+                          draggable={canMove}
+                          onDragStart={e => canMove ? handleDragStart(e, task) : e.preventDefault()}
+                          onDragEnd={handleDragEnd}
                           onClick={() => openTask(task)}
                         >
                           <div className={`kt${task.status === "Done" ? " done" : ""}`}>{task.title}</div>
@@ -414,7 +420,23 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                           {task.blocked_by && (
                             <span className="kdep"><LinkIcon size={13} />Blocked by 1</span>
                           )}
-                          <span className="kcard-lock"><Lock size={12} />Read-only</span>
+                          {!canMove && (
+                            <span className="kcard-lock"><Lock size={12} />Read-only</span>
+                          )}
+                          {/* Status selector — stop propagation so the card click doesn't fire */}
+                          {canMove && (
+                            <div className="kmove-wrap" onClick={e => e.stopPropagation()}>
+                              <select
+                                className="kmove-select"
+                                value={task.status}
+                                onChange={e => moveTask(task, e.target.value)}
+                              >
+                                {COLUMNS.map(c => (
+                                  <option key={c} value={c}>{c}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -424,9 +446,117 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             })}
           </div>
         </div>
+
+        {/* ── Below-kanban: Activity + Team Members side by side ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, marginTop: 24 }}>
+
+          {/* Activity feed */}
+          <div className="card card-pad">
+            <div className="section-head">
+              <span className="section-title">Activity</span>
+            </div>
+            {activityLoading ? (
+              <div style={{ color: "var(--fg-muted)", fontSize: 14, padding: "8px 0" }}>Loading…</div>
+            ) : activity.length === 0 ? (
+              <div style={{ color: "var(--fg-muted)", fontSize: 14, padding: "8px 0" }}>No activity yet.</div>
+            ) : (
+              <div className="feed">
+                {activity.slice(0, 8).map(item => (
+                  <div className="feed-item" key={item.id}>
+                    <Avatar name={item.user_name} size="sm" />
+                    <div className="feed-body">
+                      <div className="feed-text"><b>{item.user_name}</b> {item.action}</div>
+                      <div className="feed-time">{timeAgo(item.created_at)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Team Members */}
+          <div className="card card-pad">
+            <div className="section-head">
+              <span className="section-title">Team Members</span>
+              <div className="grow" />
+              {isAdmin && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => { setShowAddMember(v => !v); setAddMemberError(""); }}
+                  disabled={addingMember}
+                >
+                  <UserPlus size={15} /> Add member
+                </button>
+              )}
+            </div>
+
+            {showAddMember && (
+              <div ref={addMemberWrapRef} style={{ marginBottom: 12 }}>
+                <MemberSelect
+                  placeholder="Search workspace members…"
+                  onChange={handleAddMember}
+                />
+                {addMemberError && (
+                  <p className="form-error" style={{ marginTop: 6 }}>{addMemberError}</p>
+                )}
+              </div>
+            )}
+
+            {membersLoading && (
+              <>
+                <MemberRowSkeleton />
+                <MemberRowSkeleton />
+                <MemberRowSkeleton />
+              </>
+            )}
+
+            {!membersLoading && teamMembers.length === 0 && (
+              <div className="pm-empty">
+                No members yet.{isAdmin ? " Use Add member to invite someone." : ""}
+              </div>
+            )}
+
+            {!membersLoading && teamMembers.map(m => {
+              const isRemoving = removingMember === m.user_id;
+              return (
+                <div
+                  className="pm-row"
+                  key={m.user_id || m.email}
+                  style={{ opacity: isRemoving ? 0.45 : 1, transition: "opacity .2s" }}
+                >
+                  <Avatar name={m.name} size="sm" />
+                  <div className="pm-info">
+                    <div className="pm-name">{m.name}</div>
+                    <div className="pm-email">{m.email}</div>
+                  </div>
+                  <span className={`badge role${m.role === "admin" ? "" : " member"}`}>
+                    {m.role === "admin" ? "Admin" : "Member"}
+                  </span>
+                  {isAdmin && (
+                    <button
+                      className="icon-btn"
+                      style={{ width: 28, height: 28, flexShrink: 0 }}
+                      title="Remove from project"
+                      disabled={isRemoving}
+                      onClick={() => handleRemoveMember(m.user_id)}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
       </div>
 
-      <TaskPanel task={selectedTask} open={panelOpen} onClose={() => setPanelOpen(false)} />
+      <TaskPanel
+        task={selectedTask}
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        projectId={params.id}
+      />
 
       {/* ── Add Task modal ── */}
       {showAddTask && (

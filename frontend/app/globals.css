@@ -474,6 +474,30 @@ a { color: var(--fg); text-decoration: none; }
 .mc-foot .menu { margin-left: auto; }
 
 /* ============================================================
+   Kanban drag-and-drop
+   ============================================================ */
+.kcard[draggable="true"] { cursor: grab; }
+.kcard[draggable="true"]:active { cursor: grabbing; }
+.kcard.dragging { opacity: 0.35; }
+.kcol-body.drag-over {
+  background: var(--ink-03);
+  border-radius: var(--radius-standard);
+  outline: 2px dashed var(--border-strong);
+  outline-offset: 2px;
+}
+
+/* Kanban move-status select */
+.kmove-wrap { margin-top: 8px; }
+.kmove-select {
+  width: 100%; font-family: inherit; font-size: 12px;
+  color: var(--fg-muted); background: transparent;
+  border: 1px solid var(--border); border-radius: var(--radius-micro);
+  padding: 3px 6px; cursor: pointer; outline: none;
+}
+.kmove-select:hover { border-color: var(--border-strong); color: var(--fg); }
+.kmove-select:focus { border-color: var(--border-strong); }
+
+/* ============================================================
    Project detail — team member rows
    ============================================================ */
 .pm-row {

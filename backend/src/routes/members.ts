@@ -10,11 +10,24 @@ router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     let result;
     if (projectId) {
+      // Include explicit members AND users assigned to tasks in this project
       result = await pool.query(
-        `SELECT pm.id, pm.role, pm.joined_at, u.id as user_id, u.name, u.email,
+        `SELECT
+          COALESCE(pm.id::text, '') as id,
+          u.id as user_id,
+          u.name,
+          u.email,
+          COALESCE(pm.role, 'member') as role,
+          pm.joined_at,
           (SELECT COUNT(*) FROM tasks t WHERE t.assignee_id = u.id AND t.project_id = $1) as task_count
-         FROM project_members pm JOIN users u ON u.id = pm.user_id
-         WHERE pm.project_id = $1`,
+         FROM users u
+         LEFT JOIN project_members pm ON pm.user_id = u.id AND pm.project_id = $1
+         WHERE pm.project_id = $1
+            OR u.id IN (
+              SELECT DISTINCT assignee_id FROM tasks
+              WHERE project_id = $1 AND assignee_id IS NOT NULL
+            )
+         ORDER BY u.name`,
         [projectId]
       );
     } else {

@@ -1,8 +1,10 @@
 "use client";
 
-import { Ellipsis, X, Calendar, Link as LinkIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, Calendar, Link as LinkIcon } from "lucide-react";
 import Avatar from "./Avatar";
 import Badge, { statusTone } from "./Badge";
+import { activityApi } from "@/lib/api";
 
 export interface TaskData {
   id?: string;
@@ -17,15 +19,51 @@ export interface TaskData {
   blocked_by?: string;
 }
 
+interface ActivityItem {
+  id: string;
+  entity_id: string;
+  user_name: string;
+  action: string;
+  created_at: string;
+}
+
 interface TaskPanelProps {
   task: TaskData | null;
   open: boolean;
   onClose: () => void;
+  projectId?: string;
 }
 
 const PRIO_LABEL: Record<string, string> = { high: "High", medium: "Medium", low: "Low" };
 
-export default function TaskPanel({ task, open, onClose }: TaskPanelProps) {
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${Math.max(mins, 1)} minute${mins !== 1 ? "s" : ""} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? "s" : ""} ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "Yesterday";
+  return `${days} days ago`;
+}
+
+export default function TaskPanel({ task, open, onClose, projectId }: TaskPanelProps) {
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+
+  useEffect(() => {
+    if (!open || !task?.id || !projectId) {
+      setActivity([]);
+      return;
+    }
+    activityApi.list(projectId)
+      .then(r => {
+        if (Array.isArray(r.data)) {
+          setActivity(r.data.filter((a: ActivityItem) => a.entity_id === task.id));
+        }
+      })
+      .catch(() => {});
+  }, [open, task?.id, projectId]);
+
   if (!task) return null;
 
   return (
@@ -35,14 +73,13 @@ export default function TaskPanel({ task, open, onClose }: TaskPanelProps) {
         <div className="tp-head">
           <Badge tone={statusTone(task.status)} dot>{task.status}</Badge>
           <div className="grow" />
-          <button className="icon-btn" title="More"><Ellipsis size={18} /></button>
           <button className="icon-btn" title="Close" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="tp-body">
           <div className="tp-title">{task.title}</div>
-          <div className="tp-desc">
-            {task.description || "Scope, owners, and acceptance criteria for this task. Linked to the Nexus June milestone."}
-          </div>
+          {task.description && (
+            <div className="tp-desc">{task.description}</div>
+          )}
 
           <div className="tp-fields">
             <div className="tp-field">
@@ -102,31 +139,24 @@ export default function TaskPanel({ task, open, onClose }: TaskPanelProps) {
 
           <div className="tp-deps">
             <div className="section-title" style={{ fontSize: 14, marginBottom: 6 }}>Activity</div>
-            <div className="timeline">
-              <div className="tl-item">
-                <div className="tl-rail"><span className="tl-dot" /><span className="tl-line" /></div>
-                <div>
-                  <div className="tl-text"><b>{task.assignee_name || "Someone"}</b> moved this to {task.status}</div>
-                  <div className="tl-time">2 hours ago</div>
-                </div>
-              </div>
-              {task.ai_suggested && (
-                <div className="tl-item">
-                  <div className="tl-rail"><span className="tl-dot" /><span className="tl-line" /></div>
-                  <div>
-                    <div className="tl-text"><b>Nexus AI</b> suggested priority {PRIO_LABEL[task.priority]}</div>
-                    <div className="tl-time">Yesterday</div>
+            {activity.length === 0 ? (
+              <div style={{ fontSize: 13.5, color: "var(--fg-muted)", padding: "6px 0" }}>No activity yet.</div>
+            ) : (
+              <div className="timeline">
+                {activity.map((item, i) => (
+                  <div className="tl-item" key={item.id}>
+                    <div className="tl-rail">
+                      <span className="tl-dot" />
+                      {i < activity.length - 1 && <span className="tl-line" />}
+                    </div>
+                    <div>
+                      <div className="tl-text"><b>{item.user_name}</b> {item.action}</div>
+                      <div className="tl-time">{timeAgo(item.created_at)}</div>
+                    </div>
                   </div>
-                </div>
-              )}
-              <div className="tl-item">
-                <div className="tl-rail"><span className="tl-dot" /></div>
-                <div>
-                  <div className="tl-text"><b>Aria Sen</b> created this task</div>
-                  <div className="tl-time">3 days ago</div>
-                </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </aside>

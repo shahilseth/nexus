@@ -23,6 +23,19 @@ router.get("/", async (req: AuthRequest, res: Response) => {
   }
 });
 
+async function ensureMember(projectId: string, userId: string) {
+  const existing = await pool.query(
+    "SELECT id FROM project_members WHERE project_id = $1 AND user_id = $2",
+    [projectId, userId]
+  );
+  if (existing.rows.length === 0) {
+    await pool.query(
+      "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member')",
+      [projectId, userId]
+    );
+  }
+}
+
 router.post("/", async (req: AuthRequest, res: Response) => {
   if (req.user!.role !== "admin") {
     return res.status(403).json({ error: "Admin only" });
@@ -36,6 +49,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       [project_id, title, description || null, assignee_id || null, priority || "medium", status || "Backlog", due_date || null, ai_suggested || false]
     );
     const task = result.rows[0];
+    if (assignee_id) await ensureMember(project_id, assignee_id);
     await pool.query(
       "INSERT INTO activity_log (project_id, user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4, $5)",
       [project_id, req.user!.id, `created task "${title}"`, "task", task.id]
@@ -87,6 +101,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
        WHERE id = $8 RETURNING *`,
       [title, description, assignee_id, priority, status, due_date, ai_suggested, id]
     );
+    if (assignee_id) await ensureMember(task.project_id, assignee_id);
     await pool.query(
       "INSERT INTO activity_log (project_id, user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4, $5)",
       [task.project_id, userId, `updated "${task.title}"`, "task", id]
