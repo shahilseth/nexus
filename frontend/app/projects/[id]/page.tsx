@@ -448,7 +448,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
         </div>
 
         {/* ── Below-kanban: Activity + Team Members side by side ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, marginTop: 24 }}>
+        <div className="proj-detail-cols" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, marginTop: 24 }}>
 
           {/* Activity feed */}
           <div className="card card-pad">

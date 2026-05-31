@@ -128,41 +128,43 @@ export default function DashboardPage() {
               <div className="grow" />
               <Link className="link-quiet" href="/projects">View all</Link>
             </div>
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Project</th><th>Owner</th><th>Status</th><th>Due date</th>
-                  <th style={{ width: 140 }}>Progress</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingProjects ? (
-                  <tr><td colSpan={5} style={{ color: "var(--fg-muted)", fontSize: 14, padding: "18px 16px" }}>Loading…</td></tr>
-                ) : projects.length === 0 ? (
-                  <tr><td colSpan={5} style={{ color: "var(--fg-muted)", fontSize: 14, padding: "18px 16px" }}>No projects yet.</td></tr>
-                ) : projects.map(p => (
-                  <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => window.location.href = `/projects/${p.id}`}>
-                    <td className="cell-strong">{p.name}</td>
-                    <td>
-                      <div className="cell-with-avatar">
-                        <Avatar name={p.owner_name || "?"} size="xs" />
-                        {p.owner_name}
-                      </div>
-                    </td>
-                    <td><Badge tone={statusTone(p.status)} dot>{p.status}</Badge></td>
-                    <td className="muted">{p.due_date ? p.due_date.slice(0, 10) : "—"}</td>
-                    <td>
-                      <div className="cell-with-avatar">
-                        <div className="progress" style={{ flex: 1 }}>
-                          <span style={{ width: `${Number(p.progress ?? 0)}%` }} />
-                        </div>
-                        <span className="muted" style={{ fontSize: 12 }}>{Number(p.progress ?? 0)}%</span>
-                      </div>
-                    </td>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Project</th><th>Owner</th><th>Status</th><th>Due date</th>
+                    <th style={{ width: 140 }}>Progress</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loadingProjects ? (
+                    <tr><td colSpan={5} style={{ color: "var(--fg-muted)", fontSize: 14, padding: "18px 16px" }}>Loading…</td></tr>
+                  ) : projects.length === 0 ? (
+                    <tr><td colSpan={5} style={{ color: "var(--fg-muted)", fontSize: 14, padding: "18px 16px" }}>No projects yet.</td></tr>
+                  ) : projects.map(p => (
+                    <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => window.location.href = `/projects/${p.id}`}>
+                      <td className="cell-strong">{p.name}</td>
+                      <td>
+                        <div className="cell-with-avatar">
+                          <Avatar name={p.owner_name || "?"} size="xs" />
+                          {p.owner_name}
+                        </div>
+                      </td>
+                      <td><Badge tone={statusTone(p.status)} dot>{p.status}</Badge></td>
+                      <td className="muted">{p.due_date ? p.due_date.slice(0, 10) : "—"}</td>
+                      <td>
+                        <div className="cell-with-avatar">
+                          <div className="progress" style={{ flex: 1 }}>
+                            <span style={{ width: `${Number(p.progress ?? 0)}%` }} />
+                          </div>
+                          <span className="muted" style={{ fontSize: 12 }}>{Number(p.progress ?? 0)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Right rail */}

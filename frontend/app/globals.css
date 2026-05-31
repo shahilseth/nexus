@@ -628,7 +628,17 @@ a { color: var(--fg); text-decoration: none; }
 .form-error { font-size: 13px; color: var(--risk-fg); margin-top: 4px; }
 
 /* ============================================================
-   Responsive
+   Bottom nav — hidden on desktop, shown on mobile via media query
+   ============================================================ */
+.bottom-nav { display: none; }
+
+/* ============================================================
+   Table scroll wrapper
+   ============================================================ */
+.tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ============================================================
+   Responsive — tablet ≤ 1100px
    ============================================================ */
 @media (max-width: 1100px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
@@ -637,9 +647,137 @@ a { color: var(--fg); text-decoration: none; }
   .auth { grid-template-columns: 1fr; }
   .auth-aside { display: none; }
 }
+
+/* ============================================================
+   Responsive — mobile ≤ 720px
+   ============================================================ */
 @media (max-width: 720px) {
+
+  /* ── Sidebar → bottom nav ── */
   .sidebar { display: none; }
-  .stat-grid, .proj-grid, .team-grid { grid-template-columns: 1fr; }
+  .bottom-nav {
+    display: flex;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: color-mix(in srgb, var(--cream) 94%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    z-index: 40;
+    padding: 4px 0 max(4px, env(safe-area-inset-bottom));
+  }
+  .bottom-nav-item {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 3px; font-size: 11px; color: var(--fg-muted);
+    text-decoration: none; padding: 6px 8px;
+    border: none; background: none; cursor: pointer;
+    font-family: inherit; min-height: 52px;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .12s ease;
+  }
+  .bottom-nav-item.active { color: var(--fg); }
+  .bottom-nav-item svg { width: 22px; height: 22px; flex-shrink: 0; }
+
+  /* ── Topbar ── */
+  .topbar { padding: 0 16px; gap: 10px; height: 56px; }
+  .search-trigger {
+    flex: 1; min-width: 0; width: auto !important; max-width: none;
+    font-size: 14px; padding: 7px 10px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .search-trigger .kbd { display: none; }
+
+  /* ── Page layout ── */
+  .page { padding: 20px 16px 80px; } /* 80px = room for bottom nav */
+  .page-head { flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+  .page-title { font-size: 22px; letter-spacing: -0.5px; }
+  .page-sub { font-size: 14px; margin-top: 4px; }
+
+  /* ── Grids ── */
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .proj-grid, .team-grid { grid-template-columns: 1fr; }
+  .dash-cols { grid-template-columns: 1fr !important; }
+  .proj-detail-cols { grid-template-columns: 1fr !important; }
+
+  /* ── Stat cards ── */
+  .stat-card { padding: 14px 14px; }
+  .stat-num { font-size: 28px; margin-top: 10px; }
+  .stat-label { font-size: 12.5px; }
+  .stat-foot { font-size: 12px; }
+
+  /* ── Touch targets ── */
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 38px; }
+  .icon-btn { width: 44px; height: 44px; }
+
+  /* ── Table scroll ── */
+  .tbl { min-width: 500px; }
+
+  /* ── Kanban — extend to edges for edge-to-edge swipe feel ── */
+  .board-wrap { margin: 0 -16px; padding: 0 16px 8px; }
+
+  /* ── Task panel — full-width slide-in on mobile ── */
+  .task-panel {
+    width: 100% !important; max-width: 100vw;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Modals — bottom sheet on mobile ── */
+  .modal-scrim { align-items: flex-end; }
+  .modal {
+    width: 100% !important; max-width: 100% !important;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    padding: 20px 16px 36px;
+    max-height: 90vh; overflow-y: auto;
+  }
+
+  /* ── Command palette — full-width at top ── */
+  .cmdk-scrim { padding-top: 0; align-items: flex-start; }
+  .cmdk {
+    width: 100%; max-width: 100vw;
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
+  }
+
+  /* ── Member cards ── */
+  .mc-top { gap: 10px; }
+  .mc-stats { gap: 16px; }
+  .mc-name { font-size: 15px; }
+  .mc-mail { font-size: 12px; }
+  .mc-stat .n { font-size: 18px; }
+
+  /* ── Project cards ── */
+  .proj-card { padding: 16px; gap: 12px; }
+  .proj-card .pc-name { font-size: 16px; }
+
+  /* ── Section heads that might wrap ── */
+  .section-head { flex-wrap: wrap; gap: 8px; }
+
+  /* ── Project-detail member rows ── */
+  .pm-name { font-size: 14px; }
+  .pm-email { font-size: 11.5px; }
+
+  /* ── Member menu — prevent clip at card bottom ── */
+  .member-menu-wrap .member-menu { bottom: auto; top: calc(100% + 4px); }
+
+  /* ── Auth ── */
+  .auth { grid-template-columns: 1fr; }
+  .auth-aside { display: none; }
+  .auth-main { padding: 32px 20px; }
+  .auth-card h2 { font-size: 22px; }
+  .auth-card .sub { font-size: 14px; }
+
+  /* ── Page-head action row: let button wrap to its own line ── */
+  .page-head > *:last-child { flex-shrink: 0; }
+}
+
+/* ============================================================
+   Responsive — small phones ≤ 480px
+   ============================================================ */
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: 1fr; }
+  .page-title { font-size: 20px; }
+  .modal { padding: 18px 14px 32px; }
 }
 
 /* ============================================================

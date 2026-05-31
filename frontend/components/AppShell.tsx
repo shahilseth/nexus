@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import CommandPalette from "./CommandPalette";
+import BottomNav from "./BottomNav";
 import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/context/RoleContext";
 import { statsApi } from "@/lib/api";
@@ -61,6 +62,7 @@ export default function AppShell({ children }: AppShellProps) {
         {children}
       </div>
       <CommandPalette open={cmdkOpen} onClose={() => setCmdkOpen(false)} />
+      <BottomNav />
     </div>
   );
 }
